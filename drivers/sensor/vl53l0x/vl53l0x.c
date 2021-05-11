@@ -264,9 +264,9 @@ static int vl53l0x_init(const struct device *dev)
 	}
 
 	LOG_DBG("VL53L0X_GetDeviceInfo = %d", ret);
-	LOG_DBG("   Device Name : %s", vl53l0x_dev_info.Name);
-	LOG_DBG("   Device Type : %s", vl53l0x_dev_info.Type);
-	LOG_DBG("   Device ID : %s", vl53l0x_dev_info.ProductId);
+	LOG_DBG("   Device Name : %s", log_strdup(vl53l0x_dev_info.Name));
+	LOG_DBG("   Device Type : %s", log_strdup(vl53l0x_dev_info.Type));
+	LOG_DBG("   Device ID : %s", log_strdup(vl53l0x_dev_info.ProductId));
 	LOG_DBG("   ProductRevisionMajor : %d",
 		    vl53l0x_dev_info.ProductRevisionMajor);
 	LOG_DBG("   ProductRevisionMinor : %d",
