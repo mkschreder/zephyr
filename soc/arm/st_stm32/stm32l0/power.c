@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 STMicroelectronics.
+ * Copyright (C) 2021 Martin Schröder <info@swedishembedded.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -46,7 +46,6 @@ static struct gpio_backup _gpio[GPIO_CTRL_COUNT];
 static void _gpio_save_state(){
 	LL_GPIO_InitTypeDef cfg;
 
-	/* Enable GPIOs clock */
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 	__HAL_RCC_GPIOC_CLK_ENABLE();
@@ -62,7 +61,6 @@ static void _gpio_save_state(){
 		_gpio[c].AFRH = _gpios[c]->AFR[1];
 	}
 
-	/* Configure all GPIO port pins in Analog Input mode (floating input trigger OFF) */
 	cfg.Pin = GPIO_PIN_All;
 	cfg.Mode = GPIO_MODE_ANALOG;
 	cfg.Pull = GPIO_NOPULL;
@@ -71,14 +69,15 @@ static void _gpio_save_state(){
 	LL_GPIO_Init(GPIOC, &cfg);
 	LL_GPIO_Init(GPIOE, &cfg);
 
+
+	//cfg.Pin = (GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_9 | GPIO_PIN_10);
+	//cfg.Mode = GPIO_MODE_ANALOG;
+	//cfg.Pull = GPIO_NOPULL;
+	LL_GPIO_Init(GPIOH, &cfg);
+
 	// do not toggle PA0 since this is a wakeup pin!
 	cfg.Pin = 0xfffffffe;
 	LL_GPIO_Init(GPIOA, &cfg);
-
-	cfg.Pin = (GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_9 | GPIO_PIN_10);
-	cfg.Mode = GPIO_MODE_ANALOG;
-	cfg.Pull = GPIO_NOPULL;
-	LL_GPIO_Init(GPIOH, &cfg);
 
 	__HAL_RCC_GPIOA_CLK_DISABLE();
 	__HAL_RCC_GPIOB_CLK_DISABLE();
@@ -89,7 +88,6 @@ static void _gpio_save_state(){
 }
 
 static void _gpio_restore_state(){
-	  /* Enable GPIOs clock */
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 	__HAL_RCC_GPIOC_CLK_ENABLE();
@@ -163,7 +161,7 @@ void pm_power_state_set(struct pm_state_info info)
 			LL_LPM_EnableDeepSleep();
 			break;
 	}
-	__disable_irq();
+
 	/* enter SLEEP mode : WFE or WFI */
 	k_cpu_idle();
 }
