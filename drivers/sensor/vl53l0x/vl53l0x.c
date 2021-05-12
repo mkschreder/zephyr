@@ -15,9 +15,13 @@
 #include <drivers/sensor.h>
 #include <init.h>
 #include <drivers/gpio.h>
+#include <drivers/regulator.h>
+
 #include <sys/__assert.h>
 #include <zephyr/types.h>
 #include <device.h>
+#include <pm/pm.h>
+#include <pm/device_runtime.h>
 #include <logging/log.h>
 
 #include "vl53l0x_api.h"
@@ -39,10 +43,22 @@ LOG_MODULE_REGISTER(VL53L0X, CONFIG_SENSOR_LOG_LEVEL);
 #define VL53L0X_SETUP_PRE_RANGE_VCSEL_PERIOD   18
 #define VL53L0X_SETUP_FINAL_RANGE_VCSEL_PERIOD 14
 
+struct vl5310x_config {
+	const char *vdd_supply;
+	struct {
+		const char *name;
+		gpio_pin_t pin;
+	} xshut_gpio;
+};
+
 struct vl53l0x_data {
 	const struct device *i2c;
 	VL53L0X_Dev_t vl53l0x;
 	VL53L0X_RangingMeasurementData_t RangingMeasurementData;
+
+	const struct device *vdd_supply;
+	uint8_t power_on;
+	uint32_t pm_state;
 };
 
 static int vl53l0x_sample_fetch(const struct device *dev,
@@ -198,6 +214,7 @@ exit:
 
 static int vl53l0x_init(const struct device *dev)
 {
+	const struct vl5310x_config *config = dev->config;
 	struct vl53l0x_data *drv_data = dev->data;
 	VL53L0X_Error ret;
 	uint16_t vl53l0x_id = 0U;
@@ -205,30 +222,25 @@ static int vl53l0x_init(const struct device *dev)
 
 	LOG_DBG("enter in %s", __func__);
 
-#if DT_INST_NODE_HAS_PROP(0, xshut_gpios)
 	const struct device *gpio;
 
 	/* configure and set VL53L0X_XSHUT_Pin */
-	gpio = device_get_binding(DT_INST_GPIO_LABEL(0, xshut_gpios));
+	gpio = device_get_binding(config->xshut_gpio.name);
 	if (gpio == NULL) {
-		LOG_ERR("Could not get pointer to %s device.",
-		DT_INST_GPIO_LABEL(0, xshut_gpios));
+		LOG_ERR("Could not get pointer to %s device\n", config->xshut_gpio.name);
 		return -EINVAL;
 	}
 
-	if (gpio_pin_configure(gpio,
-			      DT_INST_GPIO_PIN(0, xshut_gpios),
+	if (gpio_pin_configure(gpio, config->xshut_gpio.pin,
 			      GPIO_OUTPUT | GPIO_PULL_UP) < 0) {
-		LOG_ERR("Could not configure GPIO %s %d).",
-			DT_INST_GPIO_LABEL(0, xshut_gpios),
-			DT_INST_GPIO_PIN(0, xshut_gpios));
+		LOG_ERR("Could not configure xshut gpio\n");
 		return -EINVAL;
 	}
 
-	gpio_pin_set(gpio, DT_INST_GPIO_PIN(0, xshut_gpios), 1);
+	gpio_pin_set(gpio, config->xshut_gpio.pin, 1);
 	k_sleep(K_MSEC(100));
-#endif
 
+	drv_data->vdd_supply = device_get_binding(config->vdd_supply);
 	drv_data->i2c = device_get_binding(DT_INST_BUS_LABEL(0));
 	if (drv_data->i2c == NULL) {
 		LOG_ERR("Could not get pointer to %s device.",
@@ -238,6 +250,8 @@ static int vl53l0x_init(const struct device *dev)
 
 	drv_data->vl53l0x.i2c = drv_data->i2c;
 	drv_data->vl53l0x.I2cDevAddr = DT_INST_REG_ADDR(0);
+	drv_data->pm_state = PM_DEVICE_ACTIVE_STATE;
+	pm_device_enable(dev);
 
 	/* Get info from sensor */
 	(void)memset(&vl53l0x_dev_info, 0, sizeof(VL53L0X_DeviceInfo_t));
@@ -245,13 +259,14 @@ static int vl53l0x_init(const struct device *dev)
 	ret = VL53L0X_GetDeviceInfo(&drv_data->vl53l0x, &vl53l0x_dev_info);
 	if (ret < 0) {
 		LOG_ERR("Could not get info from device.");
+		return 0;
 		return -ENODEV;
 	}
 
 	LOG_DBG("VL53L0X_GetDeviceInfo = %d", ret);
-	LOG_DBG("   Device Name : %s", vl53l0x_dev_info.Name);
-	LOG_DBG("   Device Type : %s", vl53l0x_dev_info.Type);
-	LOG_DBG("   Device ID : %s", vl53l0x_dev_info.ProductId);
+	LOG_DBG("   Device Name : %s", log_strdup(vl53l0x_dev_info.Name));
+	LOG_DBG("   Device Type : %s", log_strdup(vl53l0x_dev_info.Type));
+	LOG_DBG("   Device ID : %s", log_strdup(vl53l0x_dev_info.ProductId));
 	LOG_DBG("   ProductRevisionMajor : %d",
 		    vl53l0x_dev_info.ProductRevisionMajor);
 	LOG_DBG("   ProductRevisionMinor : %d",
@@ -280,9 +295,63 @@ static int vl53l0x_init(const struct device *dev)
 	return 0;
 }
 
+static void callback(struct onoff_manager *srv,
+             struct onoff_client *cli,
+             uint32_t state,
+             int res)
+{
 
-static struct vl53l0x_data vl53l0x_driver;
+}
 
-DEVICE_DT_INST_DEFINE(0, vl53l0x_init, NULL, &vl53l0x_driver,
-		    NULL, POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY,
+static int vl5310x_pm_ctrl(const struct device *dev,
+													 uint32_t ctrl_cmd,
+													 void *ctx, pm_device_cb cb, void *arg){
+	if(!dev || !dev->data)
+		return -ENODEV;
+	struct vl53l0x_data *self = dev->data;
+	switch(ctrl_cmd){
+		case PM_DEVICE_STATE_SET:{
+			uint32_t state = *((uint32_t*)ctx);
+			switch(state){
+				case PM_DEVICE_ACTIVE_STATE:
+					if(!self->power_on) {
+						regulator_enable(self->vdd_supply, NULL);
+						self->power_on = 1;
+					}
+					break;
+				case PM_DEVICE_LOW_POWER_STATE:
+					break;
+				case PM_DEVICE_SUSPEND_STATE:
+				case PM_DEVICE_FORCE_SUSPEND_STATE:
+				case PM_DEVICE_OFF_STATE:
+					if(self->power_on) {
+						regulator_disable(self->vdd_supply);
+						self->power_on = 0;
+					}
+					break;
+			}
+			self->pm_state = state;
+			break;
+		}
+		case PM_DEVICE_STATE_GET: {
+			*((uint32_t*)ctx) = self->pm_state;
+			break;
+		}
+		default:
+			return -EINVAL;
+	}
+	return 0;
+}
+
+#define VL5310X_DEVICE_INIT(index)\
+	static const struct vl5310x_config vl5310x_config_##index = {\
+		.xshut_gpio.name = DT_INST_GPIO_LABEL(index, xshut_gpios),\
+		.xshut_gpio.pin = DT_INST_GPIO_PIN(index, xshut_gpios),\
+		.vdd_supply = DT_INST_PROP_BY_PHANDLE(index, vin_supply, label)\
+	};\
+	static struct vl53l0x_data vl53l0x_driver_##index = {0}; \
+	DEVICE_DT_INST_DEFINE(index, vl53l0x_init, vl5310x_pm_ctrl, &vl53l0x_driver_##index,\
+		    &vl5310x_config_##index, POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY,\
 		    &vl53l0x_api_funcs);
+
+DT_INST_FOREACH_STATUS_OKAY(VL5310X_DEVICE_INIT)
