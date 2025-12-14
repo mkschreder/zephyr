@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2024 Kelly Helmut Lord
+ * Copyright (c) 2025 Martin Schröder
  * Copyright (c) 2026 Basalte bv
  *
  * SPDX-License-Identifier: Apache-2.0
@@ -283,6 +284,115 @@ int cobs_decoder_close(struct cobs_decoder *dec);
  * @return Number of bytes used from @p buf on success, negative errno code on failure
  */
 int cobs_decoder_write(struct cobs_decoder *dec, const uint8_t *buf, size_t len);
+
+/**
+ * @brief COBS streaming encoder state machine context
+ *
+ * Encodes from a source buffer across multiple output buffer calls.
+ * Non-destructive: tracks read position without modifying source.
+ */
+struct cobs_encode_state {
+	/** Current source fragment being read */
+	struct net_buf *src_frag;
+	/** Offset within current fragment */
+	size_t src_offset;
+	/** Current block's code byte (0 = need to compute) */
+	uint8_t block_code;
+	/** Position within current block (0-254) */
+	uint8_t block_pos;
+};
+
+/**
+ * @brief COBS streaming decoder state machine context
+ */
+struct cobs_decode_state {
+	/** Bytes remaining in current block (0-254) */
+	uint8_t bytes_left;
+	/** Whether to insert delimiter after block */
+	bool need_delimiter;
+	/** Set to true when frame delimiter found */
+	bool frame_complete;
+};
+
+/**
+ * @brief Initialize a COBS streaming encoder context
+ *
+ * @param self        Pointer to the COBS encoder state machine context
+ */
+void cobs_encode_init(struct cobs_encode_state *self);
+
+/**
+ * @brief Reset a COBS streaming encoder context
+ *
+ * @param self        Pointer to the COBS encoder state machine context
+ */
+void cobs_encode_reset(struct cobs_encode_state *self);
+
+/**
+ * @brief Initialize a COBS streaming decoder context
+ *
+ * @param self        Pointer to the COBS decoder state machine context
+ */
+void cobs_decode_init(struct cobs_decode_state *self);
+
+/**
+ * @brief Reset a COBS streaming decoder context
+ *
+ * @param self        Pointer to the COBS decoder state machine context
+ */
+void cobs_decode_reset(struct cobs_decode_state *self);
+
+/**
+ * @brief Encode data using a COBS streaming state machine
+ *
+ * Consumes as many bytes from src as possible, encoding them into dst.
+ * When the function returns, src contains remaining unencoded data and
+ * dst_len contains the number of bytes written to dst.
+ *
+ * @param self        Pointer to the COBS encoder state machine context
+ * @param src         Source buffer to encode (data is pulled from it)
+ * @param dst         Destination buffer for encoded data
+ * @param dst_len     On input: capacity of dst; On output: bytes written
+ *
+ * @retval 0        Success
+ * @retval -EINVAL  Invalid parameters
+ */
+int cobs_encode_stream(struct cobs_encode_state *self, struct net_buf *src,
+			uint8_t *dst, size_t *dst_len);
+
+/**
+ * @brief Finalize COBS encoding and flush remaining data
+ *
+ * Writes any buffered data and final code byte to dst.
+ *
+ * @param self        Pointer to the COBS encoder state machine context
+ * @param dst         Destination buffer for encoded data
+ * @param dst_len     On input: capacity of dst; On output: bytes written
+ *
+ * @retval 0        Success (encoder is reset)
+ * @retval -ENOMEM  Insufficient destination space
+ * @retval -EINVAL  Invalid parameters
+ */
+int cobs_encode_finalize(struct cobs_encode_state *self, uint8_t *dst, size_t *dst_len);
+
+/**
+ * @brief Decode data using a COBS streaming state machine
+ *
+ * Decodes input fragment by treating it as continuation of stream.
+ * Returns number of bytes processed from src on success, or negative error.
+ * Stops processing when frame delimiter is found.
+ *
+ * @param self        Pointer to the COBS decoder state machine context
+ * @param src         Source buffer fragment to decode
+ * @param src_len     Length of source data
+ * @param dst         Destination net_buf for decoded data
+ *
+ * @retval >0       Number of bytes processed (frame may be complete)
+ * @retval -ENOMEM  Insufficient destination space
+ * @retval -EINVAL  Invalid COBS structure or unexpected delimiter
+ */
+int cobs_decode_stream(struct cobs_decode_state *self, const uint8_t *src,
+			size_t src_len, struct net_buf *dst);
 
 /** @} */
 
