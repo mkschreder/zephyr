@@ -24,8 +24,9 @@ background while the thread continues with other tasks. The Kernel's
 :ref:`kernel_data_passing_api` features can be used to communicate between
 the thread and the UART driver.
 
-The Asynchronous API allows to read and write data in the background using DMA
-without interrupting the MCU at all. However, the setup is more complex
+The Asynchronous API allows reading and writing data in the background, often
+using DMA to minimize CPU overhead. Completion, error handling, and/or RX idle
+detection are still typically interrupt-driven, and the setup is more complex
 than the other methods.
 
 .. warning::
