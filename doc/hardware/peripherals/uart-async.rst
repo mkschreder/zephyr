@@ -98,7 +98,7 @@ That implies:
 - Keep the callback bounded and deterministic: do minimal bookkeeping and
   "handoff" work to a thread/workqueue.
 - If you share state between callback and threads, you must synchronize:
-  :c:func:`irq_lock`, :c:func:`k_spin_lock`, or atomics, depending on scope.
+  :c:func:`k_spin_lock`, or atomics, depending on scope.
 
 Common IRQ-safe "handoff" actions:
 
@@ -374,7 +374,7 @@ Therefore:
 
 - Treat the callback as **ISR code** inside the driver as well.
 - Serialize internal state updates with very short critical sections using
-  ``irq_lock()`` or ``k_spinlock`` (as seen in ns16550/MCUX).
+  ``k_spinlock`` (as seen in ns16550/MCUX).
 
 Driver rule of thumb:
 
@@ -480,10 +480,10 @@ Avoid implicit recursion hazards:
 
 Implementation pattern for ``rx_buf_rsp`` reentrancy (observed in-tree):
 
-Most drivers protect ``rx_buf_rsp`` with ``irq_lock()`` to prevent races with
+Most drivers protect ``rx_buf_rsp`` with a spinlock to prevent races with
 ISR-driven buffer swaps. The typical pattern is:
 
-- Acquire ``irq_lock()``.
+- Acquire a spinlock.
 - Check if a next buffer is already set (return ``-EBUSY`` if so).
 - Check if RX is still enabled (return ``-EACCES`` if not—too late).
 - Store the buffer pointer and length.
@@ -736,7 +736,7 @@ Sound RX handling patterns:
 ======================================================================
 
 If the callback pushes bytes into a ring buffer and a thread consumes it, you
-must protect ring buffer operations with a lock (spinlock or irq_lock), unless
+must protect ring buffer operations with a lock (spinlock), unless
 you are using a data structure with explicit lock-free guarantees for that
 producer/consumer topology.
 
@@ -870,7 +870,7 @@ Implementers (drivers)
 - ``UART_RX_DISABLED`` is emitted exactly once per RX session end.
 - Correct handling for repeated ``UART_RX_RDY`` events and offsets.
 - DMA + cache coherency is handled explicitly.
-- ``rx_buf_rsp`` is safe to call from callback context (uses ``irq_lock``).
+- ``rx_buf_rsp`` is safe to call from callback context (uses spinlock).
 
 Users (subsystems/apps)
 =======================
