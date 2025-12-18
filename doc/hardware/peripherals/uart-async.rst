@@ -76,8 +76,9 @@ Some non-hardware drivers intentionally trade correctness/completeness for
 simplicity. For example, ``uart_native_pty``:
 
 - does not support RX buffer chaining (``rx_buf_rsp`` returns ``-ENOTSUP``),
-  and therefore never needs to emit ``UART_RX_BUF_REQUEST``.
-- emits ``UART_TX_DONE`` (not ``UART_TX_ABORTED``) from its ``tx_abort`` path.
+  and therefore never emits ``UART_RX_BUF_REQUEST``.
+- emits ``UART_TX_DONE`` (not ``UART_TX_ABORTED``) from its ``tx_abort`` path,
+  with ``len = 0`` to indicate no bytes were actually transmitted.
 
 If your code must run both on real hardware UART drivers and on these simulator
 drivers, write it against the API contract, but be prepared to handle
@@ -133,9 +134,10 @@ Key nuances:
   buffer A; provide buffer B *soon* if you want continuous reception."
 - ``UART_RX_BUF_RELEASED`` is the moment you regain ownership of a buffer. You
   must not reuse or free a buffer until you see this event for that buffer.
-- ``UART_RX_STOPPED`` means RX stopped due to an error/event (overrun, framing,
-  break, etc.). Per the API contract, drivers should then flush any pending data
-  via ``UART_RX_RDY``, release buffers, and eventually emit ``UART_RX_DISABLED``.
+- ``UART_RX_STOPPED`` means RX stopped due to an error/event (overrun,
+  framing, break, etc.). Per the API contract, drivers should then flush any
+  pending data via ``UART_RX_RDY``, release buffers, and eventually emit
+  ``UART_RX_DISABLED``.
 
 Event sequencing examples (what you should design for)
 ======================================================
@@ -163,11 +165,23 @@ RX (continuous buffers)
 - Continuous RX with timely buffer supply:
 
   - user calls :c:func:`uart_rx_enable(buf0)` (RX becomes active on ``buf0``)
-  - driver emits ``UART_RX_BUF_REQUEST`` (asking for ``buf1``)
+  - driver emits ``UART_RX_BUF_REQUEST`` (asking for ``buf1``)—**timing varies**
   - user calls :c:func:`uart_rx_buf_rsp(buf1)` (seamless handoff possible)
   - driver emits one or more ``UART_RX_RDY`` as bytes arrive (often on timeout)
   - when ``buf0`` is no longer used: ``UART_RX_BUF_RELEASED(buf0)``
   - driver continues with ``buf1`` and repeats
+
+  **When does ``UART_RX_BUF_REQUEST`` arrive?** This is driver-specific:
+
+  - **nrfx UARTE**: emitted immediately when RX *starts* into a buffer
+    ("rxstarted" event), giving maximum time to respond.
+  - **STM32, MCUX LPUART**: emitted after :c:func:`uart_rx_enable` returns, in
+    the same call context or shortly after from the DMA callback path.
+  - **ESP32**: emitted after the initial buffer starts receiving.
+
+  The key invariant is: if you do not supply a buffer via ``uart_rx_buf_rsp``
+  before the current buffer fills, RX will stop and ``UART_RX_DISABLED`` will
+  be emitted after the release sequence.
 
 - Buffer starvation (no next buffer supplied in time):
 
@@ -195,6 +209,12 @@ RX (disable / stopped)
   - releases all buffers (``UART_RX_BUF_RELEASED``)
   - ends with ``UART_RX_DISABLED``
 
+  **Portability note**: Not all drivers emit ``UART_RX_STOPPED``. Some drivers
+  (e.g., ESP32) handle errors internally without generating this event, or
+  only clear error flags without notifying the user. If your protocol requires
+  detecting line errors, verify your target driver's behavior or use
+  :c:func:`uart_err_check` as a fallback.
+
 
 Soundness rules: buffer ownership and lifetimes
 ***********************************************
@@ -213,7 +233,8 @@ RX buffer ownership
 ===================
 
 - After a successful :c:func:`uart_rx_enable`, the driver owns the RX buffer
-  and will write into it until it emits ``UART_RX_BUF_RELEASED`` for that buffer.
+  and will write into it until it emits ``UART_RX_BUF_RELEASED`` for that
+  buffer.
 - After you provide a second buffer via :c:func:`uart_rx_buf_rsp`, the driver
   owns that buffer until it emits ``UART_RX_BUF_RELEASED`` for it.
 - It is **undefined behavior** to provide a buffer that the driver is still
@@ -292,13 +313,35 @@ The intended probe is:
 Once you have a working callback installed, you can safely use the other async
 entry points.
 
+Understanding ``-EACCES`` from ``uart_rx_buf_rsp``
+*************************************************
+
+When you call :c:func:`uart_rx_buf_rsp`, you may receive ``-EACCES``. This
+means the RX session has already ended (the driver has transitioned to
+disabled state) and it is too late to provide a buffer. This commonly occurs
+when:
+
+- You deferred buffer provisioning to a thread/workqueue and by the time it
+  ran, the current buffer was already full and RX stopped.
+- A line error caused ``UART_RX_STOPPED`` → ``UART_RX_DISABLED`` before you
+  could respond.
+
+If you receive ``-EACCES``, you should:
+
+- Not treat it as a fatal error.
+- Wait for ``UART_RX_DISABLED`` (if not already received).
+- Re-enable RX with a fresh buffer via :c:func:`uart_rx_enable`.
+
 Correct interpretation of ``UART_RX_RDY``: always honor (buf, offset, len)
 **************************************************************************
 
 When you receive an ``UART_RX_RDY`` event, the bytes that are *newly available*
 for processing are in:
 
-``evt->data.rx.buf[evt->data.rx.offset ... evt->data.rx.offset + evt->data.rx.len)``
+.. code-block:: c
+
+   evt->data.rx.buf[evt->data.rx.offset ..
+                    evt->data.rx.offset + evt->data.rx.len)
 
 Do not assume ``offset == 0`` and do not assume you will only see one
 ``UART_RX_RDY`` per buffer. In particular, drivers that implement RX timeouts
@@ -371,6 +414,21 @@ Driver requirements for correctness:
 - **Request next buffer early enough** that the user can respond before the
   current buffer becomes full.
 
+Immediate DMA reload in ``rx_buf_rsp``
+--------------------------------------
+
+Some DMA-based drivers (e.g., MCUX LPUART) call ``dma_reload()`` immediately
+when the user provides the next buffer via ``rx_buf_rsp``. This pre-configures
+the DMA controller so that when the current buffer fills, the hardware can
+seamlessly switch to the next buffer with minimal software intervention.
+
+This design means:
+
+- The user's response time to ``UART_RX_BUF_REQUEST`` directly affects whether
+  seamless reception is possible.
+- If the DMA controller supports scatter-gather or linked descriptors, the
+  driver can chain buffers without CPU intervention at the switch point.
+
 
 3) Emit the mandatory teardown sequence on disable/error
 ========================================================
@@ -420,6 +478,21 @@ Avoid implicit recursion hazards:
   - release the lock before calling the user, or
   - use a lockless "event queue" and invoke callback after releasing locks.
 
+Implementation pattern for ``rx_buf_rsp`` reentrancy (observed in-tree):
+
+Most drivers protect ``rx_buf_rsp`` with ``irq_lock()`` to prevent races with
+ISR-driven buffer swaps. The typical pattern is:
+
+- Acquire ``irq_lock()``.
+- Check if a next buffer is already set (return ``-EBUSY`` if so).
+- Check if RX is still enabled (return ``-EACCES`` if not—too late).
+- Store the buffer pointer and length.
+- For DMA drivers: call ``dma_reload()`` to pre-configure the next transfer.
+- Release lock.
+
+This pattern ensures that the buffer is safely registered before the current
+buffer finishes, enabling seamless double-buffering.
+
 
 5) Handle DMA, caches, and memory placement explicitly
 ======================================================
@@ -439,6 +512,21 @@ Driver guidance:
   - or perform required cache maintenance.
 - Make the behavior deterministic. Silent data corruption is worse than
   returning an error.
+
+Cyclic (circular) DMA mode
+--------------------------
+
+Some drivers (e.g., STM32, MCUX LPUART) support a cyclic DMA mode where a
+single buffer is used continuously without requiring buffer swaps. In this
+mode:
+
+- ``UART_RX_BUF_REQUEST`` may not be emitted, or is handled differently.
+- ``UART_RX_RDY`` is emitted at half-complete and full-complete points.
+- The same buffer is reused automatically.
+
+This mode is typically configured via Devicetree or Kconfig, not the API. If
+your driver supports cyclic mode, document clearly how the event sequence
+differs and whether users need to respond to ``UART_RX_BUF_REQUEST``.
 
 
 6) Power management and runtime PM
@@ -545,13 +633,41 @@ Two common approaches:
 Zephyr also provides ``uart_async_rx`` helper for users that want a zero-copy,
 multi-buffer RX stream with safe claim/consume semantics.
 
+Handling ``uart_rx_buf_rsp`` errors in the callback
+---------------------------------------------------
+
+When calling ``uart_rx_buf_rsp`` from the ``UART_RX_BUF_REQUEST`` callback,
+check the return value:
+
+- **0**: Buffer successfully registered.
+- **-EBUSY**: A next buffer is already set (should not happen if you only call
+  once per request).
+- **-EACCES**: RX is already disabled (too late). Release the buffer back to
+  your pool; you will receive ``UART_RX_DISABLED`` shortly.
+- **-ENOTSUP**: Driver does not support buffer chaining (e.g., native_pty).
+
+Example (from shell UART async backend):
+
+.. code-block:: c
+
+   case UART_RX_BUF_REQUEST:
+       buf = uart_async_rx_buf_req(&sh_uart->async_rx);
+       if (buf) {
+           int err = uart_rx_buf_rsp(dev, buf, len);
+           if (err < 0) {
+               /* Return buffer to pool on error */
+               uart_async_rx_on_buf_rel(&sh_uart->async_rx, buf);
+           }
+       }
+       break;
+
 Avoid a common pitfall: "blindly cycling" RX buffers
 ----------------------------------------------------
 
-Some code chooses to ignore ``UART_RX_BUF_RELEASED`` and simply cycles through a
-fixed set of RX buffers when ``UART_RX_BUF_REQUEST`` arrives. This can appear to
-work if the consumer is always fast enough, but it relies on a timing assumption:
-that a buffer will always be released by the time you reuse it.
+Some code chooses to ignore ``UART_RX_BUF_RELEASED`` and simply cycles through
+a fixed set of RX buffers when ``UART_RX_BUF_REQUEST`` arrives. This can appear
+to work if the consumer is always fast enough, but it relies on a timing
+assumption: that a buffer will always be released by the time you reuse it.
 
 If that assumption is ever violated (higher baud rate, longer ISR latency, or a
 burst), you can accidentally provide a buffer that is still in use, which the
@@ -560,13 +676,46 @@ API defines as **undefined behavior**.
 If you want correctness under load, track releases (or use ``uart_async_rx``)
 so that you only reuse buffers that were actually released.
 
+Pattern: atomic flags for buffer tracking
+-----------------------------------------
+
+The modem backend demonstrates a robust pattern using atomic flags:
+
+.. code-block:: c
+
+   /* State bits */
+   #define RX_BUF0_USED_BIT  0
+   #define RX_BUF1_USED_BIT  1
+
+   /* In UART_RX_BUF_REQUEST handler */
+   if (!atomic_test_and_set_bit(&state, RX_BUF0_USED_BIT)) {
+       uart_rx_buf_rsp(dev, buf0, len);
+   } else if (!atomic_test_and_set_bit(&state, RX_BUF1_USED_BIT)) {
+       uart_rx_buf_rsp(dev, buf1, len);
+   } else {
+       /* Both buffers in use - cannot provide */
+   }
+
+   /* In UART_RX_BUF_RELEASED handler */
+   if (evt->data.rx_buf.buf == buf0) {
+       atomic_clear_bit(&state, RX_BUF0_USED_BIT);
+   } else if (evt->data.rx_buf.buf == buf1) {
+       atomic_clear_bit(&state, RX_BUF1_USED_BIT);
+   }
+
+This pattern guarantees you never provide a buffer that hasn't been released,
+even under race conditions.
+
 
 4) ``UART_RX_RDY`` is incremental: respect (buf, offset, len)
 =============================================================
 
 The RX event indicates that new data is in:
 
-``evt->data.rx.buf[evt->data.rx.offset ... evt->data.rx.offset + evt->data.rx.len)``
+.. code-block:: c
+
+   evt->data.rx.buf[evt->data.rx.offset ..
+                    evt->data.rx.offset + evt->data.rx.len)
 
 Do not assume:
 
@@ -712,12 +861,16 @@ Implementers (drivers)
 
 - ``callback_set`` stores handler + user_data and enforces exclusive callbacks.
 - All async API entry points are deterministic:
-  ``-EBUSY`` for active transfers, ``-EFAULT`` for "nothing to abort/disable",
-  ``-EACCES`` for too-late ``rx_buf_rsp``.
+
+  - ``-EBUSY`` for active transfers or next buffer already set.
+  - ``-EFAULT`` for "nothing to abort/disable".
+  - ``-EACCES`` for too-late ``rx_buf_rsp`` (RX already disabled).
+
 - Every RX buffer provided is eventually released with ``UART_RX_BUF_RELEASED``.
 - ``UART_RX_DISABLED`` is emitted exactly once per RX session end.
 - Correct handling for repeated ``UART_RX_RDY`` events and offsets.
 - DMA + cache coherency is handled explicitly.
+- ``rx_buf_rsp`` is safe to call from callback context (uses ``irq_lock``).
 
 Users (subsystems/apps)
 =======================
