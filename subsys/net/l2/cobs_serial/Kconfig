@@ -3,7 +3,6 @@
 
 config NET_L2_COBS_SERIAL
 	bool "COBS Serial L2 layer"
-	select NET_PKT_COBS
 	help
 	  Enable COBS (Consistent Overhead Byte Stuffing) L2 layer.
 	  This L2 performs COBS encoding/decoding on packets sent/received
