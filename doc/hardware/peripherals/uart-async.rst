@@ -284,20 +284,20 @@ Time units, "forever" constants, and timeouts
 There are two easy-to-miss, but very important details about time arguments in
 the async UART API:
 
-- **TX (`uart_tx`) timeout unit**: microseconds.
+- **TX (``uart_tx``) timeout unit**: microseconds.
   The timeout is **only meaningful when hardware flow control is enabled**
   (per the API contract in ``uart.h``). Use ``SYS_FOREVER_US`` to disable the
   timeout. Many drivers simply ignore this timeout when HWFC is off.
 
-- **RX (`uart_rx_enable`) timeout unit**: microseconds.
+- **RX (``uart_rx_enable``) timeout unit**: microseconds.
   The timeout is an *inactivity* period counted from the **last received byte**.
   If no byte has been received yet, no timeout-triggered ``UART_RX_RDY`` event
   will be generated.
 
 Wide-data variants use different units:
 
-- **`uart_tx_u16` timeout unit**: milliseconds (use ``SYS_FOREVER_MS``).
-- **`uart_rx_enable_u16` timeout unit**: milliseconds (use ``SYS_FOREVER_MS``).
+- **``uart_tx_u16`` timeout unit**: milliseconds (use ``SYS_FOREVER_MS``).
+- **``uart_rx_enable_u16`` timeout unit**: milliseconds (use ``SYS_FOREVER_MS``).
 
 Detecting async support (user side)
 **********************************
@@ -306,9 +306,9 @@ The async API does not have a dedicated "supports async" capability query.
 The intended probe is:
 
 - Call :c:func:`uart_callback_set`.
-  - **`0`**: async callbacks are supported.
-  - **`-ENOSYS`**: the device/driver does not implement async callbacks.
-  - **`-ENOTSUP`**: async API not enabled in the build/configuration.
+  - **``0``**: async callbacks are supported.
+  - **``-ENOSYS``**: the device/driver does not implement async callbacks.
+  - **``-ENOTSUP``**: async API not enabled in the build/configuration.
 
 Once you have a working callback installed, you can safely use the other async
 entry points.
@@ -892,5 +892,3 @@ specifically exercise async UART under stress are:
 - ``tests/drivers/uart/uart_async_rx`` (uses ``ztress``).
 - ``tests/drivers/uart/uart_async_dual`` (uses ``busy_sim`` and includes
   ``pm_runtime`` cases).
-
-
