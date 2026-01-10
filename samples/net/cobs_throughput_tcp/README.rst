@@ -157,7 +157,6 @@ Key Kconfig options:
 * ``CONFIG_NET_TCP`` - Enable TCP support
 * ``CONFIG_COBS_UART_ASYNC`` - SLIP UART async driver
 * ``CONFIG_NET_L2_COBS_SERIAL`` - COBS encoding for SLIP
-* ``CONFIG_NET_TCP_WINDOW_SIZE`` - TCP window size (4096 bytes)
 
 Tuning:
 
