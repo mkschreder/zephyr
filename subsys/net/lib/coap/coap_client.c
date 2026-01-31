@@ -16,6 +16,10 @@ LOG_MODULE_DECLARE(net_coap, CONFIG_COAP_LOG_LEVEL);
 #include <zephyr/net/coap.h>
 #include <zephyr/net/coap_client.h>
 
+#if defined(CONFIG_COAP_OSCORE)
+#include "coap_oscore.h"
+#endif
+
 #define COAP_VERSION 1
 #define COAP_SEPARATE_TIMEOUT 6000
 #define COAP_PERIODIC_TIMEOUT 500
@@ -556,6 +560,19 @@ int coap_client_req(struct coap_client *client, int sock, const struct net_socka
 
 	LOG_DBG("Request is_observe %d", internal_req->is_observe);
 
+#if defined(CONFIG_COAP_OSCORE)
+	/* TODO: RFC 8613 Section 8.1: Protect request with OSCORE if client->oscore_ctx is set
+	 * This requires:
+	 * 1. Allocating a buffer for the protected message
+	 * 2. Calling coap_oscore_protect() to encrypt the request
+	 * 3. Sending the protected message instead of the original
+	 * 4. Tracking that this request is OSCORE-protected for response verification
+	 */
+	if (client->oscore_ctx != NULL) {
+		LOG_WRN("OSCORE protection not yet implemented for client requests");
+	}
+#endif
+
 	ret = send_request(sock, internal_req->request.data, internal_req->request.offset, 0,
 			   net_sad(&internal_req->addr), internal_req->addrlen);
 	if (ret < 0) {
@@ -928,6 +945,20 @@ static int handle_response(struct coap_client *client, const struct net_sockaddr
 	bool blockwise_transfer = false;
 	bool last_block = false;
 	struct coap_client_internal_request *internal_req;
+
+#if defined(CONFIG_COAP_OSCORE)
+	/* TODO: RFC 8613 Section 8.4: Verify OSCORE-protected responses
+	 * This requires:
+	 * 1. Checking if the response has the OSCORE option
+	 * 2. If the original request was OSCORE-protected, verify the response
+	 * 3. Calling coap_oscore_verify() to decrypt the response
+	 * 4. Re-parsing the decrypted CoAP message
+	 * 5. Handling verification errors per RFC 8613 Section 8.4
+	 */
+	if (client->oscore_ctx != NULL && coap_oscore_msg_has_oscore(response)) {
+		LOG_WRN("OSCORE verification not yet implemented for client responses");
+	}
+#endif
 
 	/* Handle different types, ACK might be separate or piggybacked
 	 * CON and NCON contains a separate response, CON needs an empty response
