@@ -76,6 +76,7 @@ static void reset_internal_request(struct coap_client_internal_request *request)
 {
 	*request = (struct coap_client_internal_request){
 		.last_response_id = -1,
+		.request_tag_len = 0,
 	};
 }
 
@@ -197,8 +198,28 @@ static enum coap_block_size coap_client_default_block_size(void)
 	return COAP_BLOCK_256;
 }
 
-static int coap_client_init_request(struct coap_client *client, struct coap_client_request *req,
-				    struct coap_client_internal_request *internal_req)
+/** Helper to append Request-Tag option if set.
+ * RFC9175 §3.2.1: Request-Tag length must be 0-8 bytes.
+ */
+static int append_request_tag(struct coap_client_internal_request *internal_req)
+{
+	if (internal_req->request_tag_len > 0) {
+		int ret = coap_packet_append_option(&internal_req->request,
+			COAP_OPTION_REQUEST_TAG, internal_req->request_tag,
+			internal_req->request_tag_len);
+
+		if (ret < 0) {
+			LOG_ERR("Failed to append request tag option");
+			return ret;
+		}
+	}
+	return 0;
+}
+
+static int coap_client_init_request(struct coap_client *client,
+				    struct coap_client_request *req,
+				    struct coap_client_internal_request *internal_req,
+				    bool reconstruct)
 {
 	int ret = 0;
 	int i;
@@ -248,6 +269,14 @@ static int coap_client_init_request(struct coap_client *client, struct coap_clie
 
 		if (ret < 0) {
 			LOG_ERR("Failed to append block 2 option");
+			goto out;
+		}
+
+		/* RFC9175 §3.4: When Block1 and Block2 are combined in an operation,
+		 * the Request-Tag of the Block1 phase is set in the Block2 phase as well.
+		 */
+		ret = append_request_tag(internal_req);
+		if (ret < 0) {
 			goto out;
 		}
 	}
@@ -367,6 +396,7 @@ static int coap_client_init_request(struct coap_client *client, struct coap_clie
 				uint8_t *tag = coap_next_token();
 
 				memcpy(internal_req->request_tag, tag, COAP_TOKEN_MAX_LEN);
+				internal_req->request_tag_len = COAP_TOKEN_MAX_LEN;
 			}
 
 			ret = coap_append_block1_option(&internal_req->request,
@@ -377,12 +407,8 @@ static int coap_client_init_request(struct coap_client *client, struct coap_clie
 				goto out;
 			}
 
-			ret = coap_packet_append_option(&internal_req->request,
-				COAP_OPTION_REQUEST_TAG, internal_req->request_tag,
-				COAP_TOKEN_MAX_LEN);
-
+			ret = append_request_tag(internal_req);
 			if (ret < 0) {
-				LOG_ERR("Failed to append request tag option");
 				goto out;
 			}
 		}
@@ -485,7 +511,7 @@ int coap_client_req(struct coap_client *client, int sock, const struct net_socka
 	}
 #endif
 
-	ret = coap_client_init_request(client, req, internal_req);
+	ret = coap_client_init_request(client, req, internal_req, false);
 	if (ret < 0) {
 		LOG_ERR("Failed to initialize coap request");
 		goto release;
@@ -961,7 +987,7 @@ static int handle_response(struct coap_client *client, const struct net_sockaddr
 		 /* Resend request with echo option */
 		if (response_code == COAP_RESPONSE_CODE_UNAUTHORIZED) {
 			ret = coap_client_init_request(client, &internal_req->coap_request,
-						       internal_req);
+						       internal_req, false);
 
 			if (ret < 0) {
 				LOG_ERR("Error creating a CoAP request");
@@ -1146,7 +1172,8 @@ static int handle_response(struct coap_client *client, const struct net_sockaddr
 
 	/* If this wasn't last block, send the next request */
 	if (blockwise_transfer && !last_block) {
-		ret = coap_client_init_request(client, &internal_req->coap_request, internal_req);
+		ret = coap_client_init_request(client, &internal_req->coap_request, internal_req,
+					       false);
 
 		if (ret < 0) {
 			LOG_ERR("Error creating a CoAP request");
