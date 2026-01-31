@@ -23,6 +23,8 @@ build*/
 cscope.*
 .dir
 
+/compile_commands.json
+/.agent/
 /*.patch
 
 # The .cache directory will be used to cache toolchain capabilities if
