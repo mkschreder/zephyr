@@ -203,6 +203,16 @@ struct coap_client_internal_request {
 	bool is_mcast;
 	k_timepoint_t mcast_timeout;
 #endif
+
+#if defined(CONFIG_COAP_OSCORE)
+	/* RFC 8613 OSCORE client-side support */
+	bool oscore_enabled_for_exchange; /**< True if request was OSCORE-protected */
+	uint8_t oscore_wire_buf[MAX_COAP_MSG_LEN]; /**< OSCORE-protected wire message */
+	uint8_t oscore_plaintext_buf[MAX_COAP_MSG_LEN]; /**< Decrypted response buffer */
+	/* For Block2 with OSCORE: reassemble ciphertext before verification */
+	uint8_t oscore_ciphertext_buf[MAX_COAP_MSG_LEN];
+	size_t oscore_ciphertext_len; /**< Accumulated ciphertext length */
+#endif
 };
 /** @endcond */
 
