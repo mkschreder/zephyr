@@ -1,0 +1,19 @@
+common:
+  filter: CONFIG_ARMV7_M_ARMV8_M_MAINLINE
+  tags:
+    - arm
+    - armv7m
+    - torture
+  arch_allow: arm
+  platform_allow:
+    - qemu_cortex_m3
+    - mps2_an385
+tests:
+  arch.arm.armv7m.alu_flags:
+    filter: not CONFIG_TRUSTED_EXECUTION_NONSECURE
+  arch.arm.armv7m.alu_flags.no_optimizations:
+    filter: not CONFIG_TRUSTED_EXECUTION_NONSECURE
+    extra_configs:
+      - CONFIG_NO_OPTIMIZATIONS=y
+      - CONFIG_ZTEST_WARN_NO_OPTIMIZATIONS=n
+    min_flash: 256

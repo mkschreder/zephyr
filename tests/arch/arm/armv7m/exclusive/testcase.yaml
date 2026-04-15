@@ -1,0 +1,13 @@
+common:
+  filter: CONFIG_ARMV7_M_ARMV8_M_MAINLINE
+  tags:
+    - arm
+    - armv7m
+    - torture
+  arch_allow: arm
+  platform_allow:
+    - qemu_cortex_m3
+    - mps2_an385
+tests:
+  arch.arm.armv7m.exclusive:
+    filter: not CONFIG_TRUSTED_EXECUTION_NONSECURE
