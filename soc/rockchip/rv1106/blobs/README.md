@@ -1,30 +1,71 @@
 # RV1106 Firmware Blobs
 
-## idblock.bin
+Two distinct binary blobs are stored here.  They serve completely different
+purposes and must not be confused:
 
-**Source:** Extracted from the official Luckfox Pico Plus factory image
-`Luckfox_Pico_Plus_Flash_250429/update.img`, partition `idblock`
-(RKAF nand\_addr=`0x200`, size=188416 bytes).
+---
 
-**Purpose:** The Rockchip BootROM loads this blob from SPI NAND LBA `0x200`.
-It contains the official Rockchip DDR-init code and miniloader (SPL).
-The miniloader initialises LPDDR4, then loads the FIT image from NAND LBA
-`0x400` (the `uboot` partition slot) and jumps to `0x00200000`.
+## MiniLoaderAll.bin  (RKBOOT / `LDR ` magic)
 
-**Interim status:** This is a prebuilt binary captured from the stock firmware.
-The long-term goal is to rebuild it from the rkbin repository
-(`https://github.com/rockchip-linux/rkbin`) using the `boot_merger` tool and
-the appropriate DDR blob (`rv1106_ddr_*.bin`), which removes the dependency on
-this prebuilt blob.  A west submanifest for rkbin is included in
-`applications/zephyr/submanifests/rockchip-rkbin.yaml` to enable that future
-workflow.
+**Source:** `download.bin` from the official Luckfox Pico Plus SDK image
+`Luckfox_Pico_Plus_Flash_250429/download.bin`.
 
-**NAND layout for `west flash`:**
+**Format:** Rockchip RKBOOT container (`LDR ` magic, verified with
+`rockutil PRINT`).  Contains:
+- e471 entries: `UsbHead` (RKNS header stub) + `rv1106_ddr_924MHz_v1`
+  DDR-init code sent via USB control code 0x471.
+- e472 entries: `rv1106_usbplug_v1` USB plug binary sent via USB control
+  code 0x472.
 
-| NAND LBA | Contents          |
-|----------|-------------------|
-| `0x200`  | idblock.bin       |
-| `0x400`  | zephyr.itb (FIT)  |
+**Purpose:** Used exclusively for the **MaskROM → Loader USB handshake**:
 
-The runner writes both blobs in MaskROM → Loader mode via `rockutil`.
+```
+rockutil UL MiniLoaderAll.bin
+```
+
+This puts the device into Loader mode (re-enumerates as PID 0x110D) from
+which NAND writes are possible.  **This file is never written to NAND.**
+
+---
+
+## idblock.bin  (RKNS magic)
+
+**Source:** Partition `idblock` extracted from the official Luckfox Pico Plus
+factory image `Luckfox_Pico_Plus_Flash_250429/update.img`
+(nand_addr=`0x200`, size=188416 bytes).
+
+**Format:** Rockchip NAND boot image (`RKNS` magic).  Contains the DDR-init
+code and miniloader that the BootROM loads from SPI NAND during a normal
+(non-MaskROM) power-on.  Segment 0 is the UsbHead stub; subsequent segments
+are the DDR-init and miniloader body, loaded to SRAM and then DDR.
+
+**Purpose:** Written to **NAND LBA 0x200** by the runner:
+
+```
+rockutil WL 0x200 idblock.bin
+```
+
+After reboot the BootROM finds this image on NAND, loads it, and execution
+proceeds: DDR init → miniloader → loads `zephyr.itb` from LBA 0x400 →
+Zephyr starts at 0x00200000.
+
+---
+
+## NAND layout written by `west flash`
+
+| NAND LBA | File           | Purpose                          |
+|----------|----------------|----------------------------------|
+| `0x200`  | idblock.bin    | DDR-init + miniloader (BootROM)  |
+| `0x400`  | zephyr.itb     | Zephyr FIT image (miniloader)    |
+
 All other NAND partitions (boot, rootfs, oem, etc.) are left untouched.
+
+---
+
+## Interim status
+
+Both blobs are prebuilt binaries from the stock Luckfox SDK.  The long-term
+goal is to rebuild them from the rkbin repository
+(`https://github.com/rockchip-linux/rkbin`) using the `boot_merger` tool and
+the appropriate DDR blob (`rv1106_ddr_*.bin`).  A west submanifest for rkbin
+is included in `submanifests/rockchip-rkbin.yaml`.

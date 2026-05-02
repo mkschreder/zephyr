@@ -7,20 +7,32 @@ Supports the Rockchip MaskROM → Loader → flash workflow for SPI NAND targets
 (e.g. Luckfox Pico Plus / RV1106).  The device must be held in MaskROM mode
 (BOOT button + power cycle) before running ``west flash``.
 
+Two distinct binary blobs are involved — they serve different purposes:
+
+  ``loader``   (RKBOOT/LDR magic) — sent over USB via ``rockutil UL`` to
+               perform the MaskROM handshake.  It bundles DDR-init (e471
+               entries) and a USB plug binary (e472 entries) in Rockchip's
+               RKBOOT container format.  For RV1106 this is ``download.bin``
+               (or ``MiniLoaderAll.bin``) from the official Luckfox SDK.
+               This is NOT written to NAND.
+
+  ``idblock``  (RKNS magic) — the actual NAND boot image written to NAND
+               LBA 0x200 by ``rockutil WL``.  The BootROM searches for this
+               ``RKNS`` magic on the NAND after a normal power-on reset.
+
 Flash sequence
 --------------
-1. rockutil LD — confirm a MaskROM or Loader device is present.
-2. If MaskROM: ``rockutil UL <idblock>`` — upload DDR-init + miniloader,
-   wait for re-enumeration as Loader (PID 0x110D for RV1106).
-3. ``rockutil WL 0x200 <idblock>`` — write idblock to NAND LBA 0x200.
-4. ``rockutil WL 0x400 <zephyr.itb>`` — write FIT image to NAND LBA 0x400.
-5. ``rockutil RD`` — reboot (unless --no-reboot is passed).
+1. ``rockutil LD`` — detect MaskROM or Loader device.
+2. If MaskROM: ``rockutil UL <loader>`` — send DDR-init + usbplug via USB,
+   wait for device to re-enumerate as Loader mode.
+3. ``rockutil WL <idblock-lba> <idblock>`` — write RKNS idblock to NAND.
+4. ``rockutil WL <itb-lba>   <zephyr.itb>`` — write FIT image to NAND.
+5. ``rockutil RD`` — reboot (unless --no-reboot).
 '''
 
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 from runners.core import RunnerCaps, ZephyrBinaryRunner
@@ -33,12 +45,14 @@ _ITB_LBA_DEFAULT = '0x400'
 class RockutilBinaryRunner(ZephyrBinaryRunner):
     '''Runner front-end for the rockutil Rockchip flashing tool.'''
 
-    def __init__(self, cfg, *, rockutil='rockutil', idblock, itb_file=None,
+    def __init__(self, cfg, *, rockutil='rockutil',
+                 loader, idblock, itb_file=None,
                  idblock_lba=_IDBLOCK_LBA_DEFAULT,
                  itb_lba=_ITB_LBA_DEFAULT,
                  no_reboot=False):
         super().__init__(cfg)
         self.rockutil = rockutil
+        self.loader = loader
         self.idblock = idblock
         self.itb_file = itb_file
         self.idblock_lba = idblock_lba
@@ -59,9 +73,17 @@ class RockutilBinaryRunner(ZephyrBinaryRunner):
             '--rockutil', default='rockutil',
             help='rockutil executable; default "rockutil"')
         parser.add_argument(
+            '--loader', required=True,
+            help='Path to the Rockchip USB loader in RKBOOT format '
+                 '(BOOT/LDR magic; contains DDR-init e471 entries and '
+                 'usbplug e472 entries).  Used only for the MaskROM→Loader '
+                 'USB handshake via "rockutil UL".  For RV1106 this is '
+                 'download.bin / MiniLoaderAll.bin from the Luckfox SDK.')
+        parser.add_argument(
             '--idblock', required=True,
-            help='Path to the Rockchip idblock binary (RKNS magic, '
-                 'contains DDR-init + miniloader).')
+            help='Path to the NAND idblock (RKNS magic). '
+                 'Written to NAND at --idblock-lba via "rockutil WL". '
+                 'The BootROM loads this on normal power-on from NAND.')
         parser.add_argument(
             '--zephyr-itb',
             help='Path to the FIT image (zephyr.itb). '
@@ -85,6 +107,7 @@ class RockutilBinaryRunner(ZephyrBinaryRunner):
         return cls(
             cfg,
             rockutil=args.rockutil,
+            loader=args.loader,
             idblock=args.idblock,
             itb_file=itb,
             idblock_lba=args.idblock_lba,
@@ -140,15 +163,15 @@ class RockutilBinaryRunner(ZephyrBinaryRunner):
             return ''
 
     def _is_maskrom(self, ld_output):
-        return 'MaskRom' in ld_output or 'Maskrom' in ld_output or \
-               'maskrom' in ld_output or 'MASKROM' in ld_output or \
-               '350A' in ld_output
+        return ('MaskRom' in ld_output or 'Maskrom' in ld_output or
+                'maskrom' in ld_output or 'MASKROM' in ld_output or
+                '350A' in ld_output)
 
     def _is_loader(self, ld_output):
-        return 'Loader' in ld_output or 'loader' in ld_output or \
-               'LOADER' in ld_output or \
-               '110D' in ld_output or '110B' in ld_output or \
-               '350B' in ld_output
+        return ('Loader' in ld_output or 'loader' in ld_output or
+                'LOADER' in ld_output or
+                '110D' in ld_output or '110B' in ld_output or
+                '350B' in ld_output)
 
     # ------------------------------------------------------------------
     # Flash
@@ -157,13 +180,24 @@ class RockutilBinaryRunner(ZephyrBinaryRunner):
     def do_run(self, command, **kwargs):
         self.require(self.rockutil)
 
+        loader  = str(Path(self.loader).resolve())
         idblock = str(Path(self.idblock).resolve())
-        itb = str(Path(self.itb_file).resolve())
+        itb     = str(Path(self.itb_file).resolve())
+
+        if not Path(loader).is_file():
+            raise RuntimeError(
+                f'Loader (RKBOOT) not found: {loader}\n'
+                'Pass --loader=<path> or set it in board.cmake.\n'
+                'The loader is the RKBOOT-format file (BOOT/LDR magic) used\n'
+                'for the MaskROM USB handshake — e.g. download.bin or\n'
+                'MiniLoaderAll.bin from the Luckfox SDK, NOT the NAND idblock.')
 
         if not Path(idblock).is_file():
             raise RuntimeError(
-                f'idblock not found: {idblock}\n'
-                'Pass --idblock=<path> or set it in board.cmake.')
+                f'NAND idblock not found: {idblock}\n'
+                'Pass --idblock=<path> or set it in board.cmake.\n'
+                'The idblock is the RKNS-format NAND image written to\n'
+                f'NAND LBA {self.idblock_lba} via "rockutil WL".')
 
         # Build the ITB if it does not already exist.
         if not Path(itb).is_file():
@@ -188,15 +222,17 @@ class RockutilBinaryRunner(ZephyrBinaryRunner):
                 'connecting USB, then run west flash again.')
 
         if self._is_maskrom(ld_out):
-            print('MaskROM detected — uploading idblock loader...')
-            self.check_call([self.rockutil, 'UL', idblock])
-            # After UL, re-detect to confirm Loader mode.
+            print('MaskROM detected — uploading DDR-init + usbplug loader...')
+            print(f'  loader: {loader}')
+            self.check_call([self.rockutil, 'UL', loader])
+            # After UL the device re-enumerates in Loader mode.
             ld_out = self._rockutil_ld()
             print(ld_out.strip())
             if not self._is_loader(ld_out):
                 raise RuntimeError(
-                    'Device did not switch to Loader mode after UL command.\n'
-                    'Check that the idblock blob is valid for this SoC.')
+                    'Device did not switch to Loader mode after UL.\n'
+                    'Check that --loader points to a valid RKBOOT file\n'
+                    '(BOOT/LDR magic) for this SoC.')
 
         print(f'Writing idblock to NAND LBA {self.idblock_lba}...')
         self.check_call([self.rockutil, 'WL', self.idblock_lba, idblock])
