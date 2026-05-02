@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_RV1106
+	select ARM
+	select CPU_CORTEX_A7
+	select ARM_ARCH_TIMER
+	select ARM_AARCH32_MMU
+	select CACHE_MANAGEMENT
+	select SYS_CLOCK_EXISTS
+
+config SOC_PART_NUMBER
+	default "RV1106" if SOC_SERIES_RV1106
