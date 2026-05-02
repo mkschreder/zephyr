@@ -23,7 +23,7 @@ Two distinct binary blobs are involved — they serve different purposes:
 Flash sequence
 --------------
 1. ``rockutil LD`` — detect MaskROM or Loader device.
-2. If MaskROM: ``rockutil UL <loader>`` — send DDR-init + usbplug via USB,
+2. If MaskROM: ``rockutil UL <loader> --handshake-only`` — send DDR-init + usbplug via USB,
    wait for device to re-enumerate as Loader mode.
 3. ``rockutil WL <idblock-lba> <idblock>`` — write RKNS idblock to NAND.
 4. ``rockutil WL <itb-lba>   <zephyr.itb>`` — write FIT image to NAND.
@@ -224,7 +224,7 @@ class RockutilBinaryRunner(ZephyrBinaryRunner):
         if self._is_maskrom(ld_out):
             print('MaskROM detected — uploading DDR-init + usbplug loader...')
             print(f'  loader: {loader}')
-            self.check_call([self.rockutil, 'UL', loader])
+            self.check_call([self.rockutil, 'UL', loader, '--handshake-only'])
             # After UL the device re-enumerates in Loader mode.
             ld_out = self._rockutil_ld()
             print(ld_out.strip())
