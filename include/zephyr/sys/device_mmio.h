@@ -99,10 +99,15 @@ static inline void device_map(mm_reg_t *virt_addr, uintptr_t phys_addr,
 {
 #ifdef CONFIG_MMU
 	/* Pass along flags and add that we want supervisor mode
-	 * read-write access.
+	 * read-write access.  When KERNEL_DIRECT_MAP is enabled the physical
+	 * address is used directly as the virtual address (identity mapping),
+	 * which is necessary for peripherals located outside the kernel's
+	 * small virtual memory pool (e.g. high-address MMIO regions).
 	 */
 	k_mem_map_phys_bare((uint8_t **)virt_addr, phys_addr, size,
-			    flags | K_MEM_PERM_RW);
+			    flags | K_MEM_PERM_RW |
+			    COND_CODE_1(CONFIG_KERNEL_DIRECT_MAP,
+					(K_MEM_DIRECT_MAP), (0)));
 #else
 	ARG_UNUSED(size);
 	ARG_UNUSED(flags);
