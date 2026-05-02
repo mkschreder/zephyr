@@ -1,0 +1,16 @@
+manifest:
+  remotes:
+    - name: rockchip-linux
+      url-base: https://github.com/rockchip-linux
+  projects:
+    - name: rkbin
+      remote: rockchip-linux
+      path: modules/lib/rkbin
+      # Pinned to a recent stable commit (2025-04-xx).
+      # Contains DDR init blobs, miniloader, and the boot_merger tool
+      # needed to rebuild idblock.bin for RV1106 / RV1103 targets.
+      # To update: check https://github.com/rockchip-linux/rkbin/commits/master
+      # and pin to a new commit hash.
+      revision: b0c9c2e7fdfb69c7ecb5e3bf5ac14f8bde32d7d9
+      groups:
+        - optional
