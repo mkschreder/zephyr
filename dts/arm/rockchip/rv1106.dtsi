@@ -1,0 +1,139 @@
+/*
+ * Copyright (c) 2026 Martin Schröder <info@swedishembedded.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Rockchip RV1106 / RV1103 SoC device tree include.
+ *
+ * Address map source: RV1106 Technical Reference Manual §1.1 Table 1-1.
+ * Emulator reference: applications/emulators/vemu/crates/vemu-rv1106/src/memmap.rs
+ */
+
+#include <mem.h>
+#include <freq.h>
+
+#include <arm/armv7-a.dtsi>
+#include <zephyr/dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	interrupt-parent = <&gic>;
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a7";
+			device_type = "cpu";
+			reg = <0>;
+		};
+	};
+
+	/*
+	 * ARM Generic Timer.  RV1106 uses the Cortex-A7 embedded generic
+	 * timer (virtual + physical).  PPIs match the standard ARM assignments:
+	 *   PPI 13 = HV phys timer, 14 = virt timer, 11 = sec phys timer,
+	 *   10 = EL2 phys timer (unused; listed for completeness).
+	 */
+	arch_timer: timer {
+		compatible = "arm,armv8-timer";
+		status = "okay";
+		interrupts = <GIC_PPI 13 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 14 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 11 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+			     <GIC_PPI 10 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+		interrupt-parent = <&gic>;
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		/*
+		 * GIC-400 (ARM Generic Interrupt Controller v2).
+		 * Base address: 0xFF1F0000.
+		 *   Distributor:   0xFF1F1000 (GICD_OFFSET = 0x1000)
+		 *   CPU interface: 0xFF1F2000 (GICC_OFFSET = 0x2000)
+		 */
+		gic: interrupt-controller@ff1f1000 {
+			compatible = "arm,gic-400", "arm,gic-v2", "arm,gic";
+			status = "okay";
+			reg = <0xFF1F1000 0x1000>,
+			      <0xFF1F2000 0x2000>;
+			interrupt-controller;
+			#interrupt-cells = <4>;
+			#address-cells = <0>;
+		};
+
+		/*
+		 * UARTs 0-5.  All are DesignWare APB UARTs (16550-compatible).
+		 * Base addresses: 0xFF4A0000 - 0xFF4F0000 (stride 0x10000).
+		 * Clock: 24 MHz oscillator (before CRU is configured).
+		 * Console on Luckfox Pico Plus: UART2 (GPIO_B3/B2).
+		 */
+		uart0: uart@ff4a0000 {
+			compatible = "ns16550", "snps,dw-apb-uart";
+			reg = <0xFF4A0000 0x1000>;
+			reg-shift = <2>;
+			interrupts = <GIC_SPI 36 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			clock-frequency = <DT_FREQ_M(24)>;
+			status = "disabled";
+		};
+
+		uart1: uart@ff4b0000 {
+			compatible = "ns16550", "snps,dw-apb-uart";
+			reg = <0xFF4B0000 0x1000>;
+			reg-shift = <2>;
+			interrupts = <GIC_SPI 37 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			clock-frequency = <DT_FREQ_M(24)>;
+			status = "disabled";
+		};
+
+		uart2: uart@ff4c0000 {
+			compatible = "ns16550", "snps,dw-apb-uart";
+			reg = <0xFF4C0000 0x1000>;
+			reg-shift = <2>;
+			interrupts = <GIC_SPI 38 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			clock-frequency = <DT_FREQ_M(24)>;
+			status = "disabled";
+		};
+
+		uart3: uart@ff4d0000 {
+			compatible = "ns16550", "snps,dw-apb-uart";
+			reg = <0xFF4D0000 0x1000>;
+			reg-shift = <2>;
+			interrupts = <GIC_SPI 39 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			clock-frequency = <DT_FREQ_M(24)>;
+			status = "disabled";
+		};
+
+		uart4: uart@ff4e0000 {
+			compatible = "ns16550", "snps,dw-apb-uart";
+			reg = <0xFF4E0000 0x1000>;
+			reg-shift = <2>;
+			interrupts = <GIC_SPI 40 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			clock-frequency = <DT_FREQ_M(24)>;
+			status = "disabled";
+		};
+
+		uart5: uart@ff4f0000 {
+			compatible = "ns16550", "snps,dw-apb-uart";
+			reg = <0xFF4F0000 0x1000>;
+			reg-shift = <2>;
+			interrupts = <GIC_SPI 41 IRQ_TYPE_LEVEL
+				      IRQ_DEFAULT_PRIORITY>;
+			clock-frequency = <DT_FREQ_M(24)>;
+			status = "disabled";
+		};
+	};
+};
