@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+# Serial driver
+CONFIG_SERIAL=y
+
+# Console over UART
+CONFIG_CONSOLE=y
+CONFIG_UART_CONSOLE=y

@@ -1,0 +1,6 @@
+board:
+  name: luckfox_pico_plus
+  full_name: Luckfox Pico Plus
+  vendor: luckfox
+  socs:
+  - name: rv1106

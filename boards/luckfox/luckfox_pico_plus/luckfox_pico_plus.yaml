@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+identifier: luckfox_pico_plus
+name: Luckfox Pico Plus
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+vendor: luckfox

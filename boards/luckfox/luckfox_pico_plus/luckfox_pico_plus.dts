@@ -1,0 +1,54 @@
+/*
+ * Copyright (c) 2026 Martin Schröder <info@swedishembedded.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*
+ * Luckfox Pico Plus board:
+ *   SoC:   Rockchip RV1106G3 (Cortex-A7 @ 1.2 GHz)
+ *   DRAM:  256 MiB LPDDR4 (DDR base 0x40000000)
+ *   Flash: 256 MiB SPI NAND
+ *   Console: UART2 (GPIO_B3 TX / GPIO_B2 RX)
+ *
+ * Boot flow: BootROM → idblock (DDR init + miniloader) → zephyr.itb FIT loaded
+ * to 0x00200000 (DDR alias).  Zephyr entry is therefore 0x00200000.
+ */
+
+/dts-v1/;
+
+#include <rockchip/rv1106.dtsi>
+
+/ {
+	model = "Luckfox Pico Plus";
+	compatible = "rockchip,luckfox-pico-plus", "rockchip,rv1106";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	chosen {
+		zephyr,console = &uart2;
+		zephyr,shell-uart = &uart2;
+		zephyr,sram = &dram0;
+	};
+
+	/*
+	 * The Rockchip miniloader (idblock) loads the FIT image to address
+	 * 0x00200000, which is an alias of physical DDR at 0x40200000.
+	 * Zephyr is linked at this address and executed directly.
+	 * Expose 64 MiB of DDR starting at 0x00200000 as system RAM.
+	 */
+	dram0: memory@200000 {
+		device_type = "memory";
+		compatible = "mmio-sram";
+		reg = <0x00200000 DT_SIZE_M(64)>;
+	};
+};
+
+&cpu0 {
+	clock-frequency = <DT_FREQ_M(1200)>;
+};
+
+&uart2 {
+	status = "okay";
+	current-speed = <115200>;
+};
