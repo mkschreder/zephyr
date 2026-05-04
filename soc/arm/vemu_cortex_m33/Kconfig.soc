@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config SOC_VEMU_CORTEX_M33
+	bool
+	select SOC_FAMILY_ARM
+	help
+	  vemu virtual Cortex-M33 SoC (LM3S-compatible peripherals, ARMv8-M Mainline core).
+
+config SOC
+	default "vemu_cortex_m33" if SOC_VEMU_CORTEX_M33
