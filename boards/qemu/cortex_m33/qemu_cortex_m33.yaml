@@ -1,0 +1,12 @@
+identifier: qemu_cortex_m33
+name: QEMU Emulation for Cortex-M33
+type: qemu
+simulation:
+  - name: vemu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 64
+flash: 256
+vendor: arm

@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+if BOARD_QEMU_CORTEX_M33
+
+config BUILD_OUTPUT_BIN
+	default n
+
+choice NULL_POINTER_EXCEPTION_DETECTION
+	bool
+	default NULL_POINTER_EXCEPTION_DETECTION_NONE
+endchoice
+
+endif # BOARD_QEMU_CORTEX_M33
