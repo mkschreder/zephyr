@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+if SOC_VEMU_CORTEX_M33
+
+config SOC_SERIES
+	default "vemu_cortex_m33"
+
+config NUM_IRQS
+	default 64
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	default 12000000
+
+endif # SOC_VEMU_CORTEX_M33
