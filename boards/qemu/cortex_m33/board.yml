@@ -1,0 +1,6 @@
+board:
+  name: qemu_cortex_m33
+  full_name: QEMU Emulation for ARM Cortex-M33 (vemu compatible)
+  vendor: arm
+  socs:
+  - name: vemu_cortex_m33
