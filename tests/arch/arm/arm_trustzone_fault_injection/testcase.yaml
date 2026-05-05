@@ -1,0 +1,15 @@
+tests:
+  arch.arm.trustzone.fault_injection:
+    tags:
+      - arm
+      - trustzone
+    filter: CONFIG_ARM_SECURE_FIRMWARE
+    platform_allow:
+      - mps2/an521/cpu0/secure
+      - lpcxpresso55s69/lpc55s69/cpu0/secure
+    timeout: 60
+    harness: ztest
+    harness_config:
+      type: one_line
+      regex:
+        - "PROJECT EXECUTION SUCCESSFUL"
