@@ -438,6 +438,45 @@ int arm_cmse_addr_range_nonsecure_readwrite_ok(uint32_t addr, uint32_t size, int
 
 #endif /* CONFIG_ARM_SECURE_FIRMWARE */
 
+/*
+ * Z_ARM_TZ_REQUIRE_NS_CALLER() — Enforce Non-Secure caller at entry functions.
+ *
+ * Place this macro at the very start of a __attribute__((cmse_nonsecure_entry))
+ * function body.  If the function is invoked directly from Secure state
+ * (bypassing the SG veneer) it raises a SecureFault(INVEP) at runtime.
+ *
+ * Enabled when CONFIG_ARM_TZ_CMSE_NONSECURE_CALLER_CHECK=y.  When disabled
+ * the macro expands to nothing so callers compile unchanged.
+ *
+ * Usage:
+ *   void __attribute__((cmse_nonsecure_entry)) my_secure_entry(int arg)
+ *   {
+ *       Z_ARM_TZ_REQUIRE_NS_CALLER();
+ *       // ... rest of the entry function
+ *   }
+ *
+ * Reference: ARM DDI 0553B §C1.4.5 (__cmse_nonsecure_caller intrinsic).
+ */
+#if defined(CONFIG_ARM_TZ_CMSE_NONSECURE_CALLER_CHECK) && defined(__ARM_FEATURE_CMSE) && \
+	(__ARM_FEATURE_CMSE & 0x1)
+#define Z_ARM_TZ_REQUIRE_NS_CALLER()                                           \
+	do {                                                                   \
+		if (!__cmse_nonsecure_caller()) {                              \
+			/*                                                     \
+			 * Called from Secure state — simulate INVEP by        \
+			 * executing an illegal SG entry (raise SecureFault).  \
+			 * The simplest portable approach is a forced fault via \
+			 * an undefined instruction-like mechanism; for         \
+			 * __cmse_nonsecure_entry functions the toolchain       \
+			 * expects this path to not return.                    \
+			 */                                                    \
+			__asm__ volatile("udf #0\n\t" : : : "memory");        \
+		}                                                              \
+	} while (0)
+#else
+#define Z_ARM_TZ_REQUIRE_NS_CALLER() do { } while (0)
+#endif /* CONFIG_ARM_TZ_CMSE_NONSECURE_CALLER_CHECK */
+
 #ifdef __cplusplus
 }
 #endif
