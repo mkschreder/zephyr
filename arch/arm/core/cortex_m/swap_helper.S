@@ -111,6 +111,31 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
      * regardless of whether the thread has an active FP context.
      */
 #endif /* CONFIG_FPU_SHARING */
+#if defined(CONFIG_ARM_SECURE_FIRMWARE) && defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
+    /* Force pending Secure lazy FP save before context switch (DDI 0553B §B7.7).
+     * This prevents SFSR.LSERR when the incoming thread also uses FP.
+     */
+    push {r2, lr}
+    bl z_arm_tz_force_secure_fp_lazy_save
+    pop {r2, lr}
+#endif /* CONFIG_ARM_SECURE_FIRMWARE && CONFIG_FPU && CONFIG_FPU_SHARING */
+
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+    /* Save PSPLIM_NS per-thread (DDI 0553B §B3.10).
+     * PSPLIM_NS SYSm = 0x1B: MRS r0, PSPLIM_NS
+     * hw1=0xF3EF hw2=0x800B|0x1000 = 0x801B → full word 0xF3EF801B
+     */
+    .inst.w 0xF3EF801B          /* MRS r0, PSPLIM_NS (SYSm=0x1B) */
+    str r0, [r2, #_thread_offset_to_psplim_ns]
+#if defined(CONFIG_FPU)
+    /* Save CONTROL_S.SFPA (bit 2) per-thread (DDI 0553B §B3.16).
+     * MRS r0, CONTROL (reads Secure CONTROL when in Secure state)
+     */
+    mrs r0, CONTROL
+    ubfx r0, r0, #2, #1         /* extract SFPA = bit 2 */
+    strb r0, [r2, #_thread_offset_to_sfpa]
+#endif /* CONFIG_FPU */
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
 #else
 #error Unknown ARM architecture
 #endif /* CONFIG_ARMV6_M_ARMV8_M_BASELINE */
@@ -291,6 +316,24 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
     msr CONTROL, r3
     isb
 #endif
+
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+    /* Restore PSPLIM_NS for the incoming thread (DDI 0553B §B3.10).
+     * MSR PSPLIM_NS, r0  SYSm=0x1B:
+     * hw1=0xF380 hw2=0x881B → full word 0xF380881B
+     */
+    ldr r0, [r2, #_thread_offset_to_psplim_ns]
+    .inst.w 0xF380881B          /* MSR PSPLIM_NS, r0 (SYSm=0x1B) */
+#if defined(CONFIG_FPU)
+    /* Restore CONTROL_S.SFPA for the incoming thread (DDI 0553B §B3.16). */
+    ldrb r0, [r2, #_thread_offset_to_sfpa]
+    mrs r3, CONTROL
+    bic r3, r3, #4              /* clear bit 2 (SFPA) */
+    orr r3, r3, r0, lsl #2     /* insert saved SFPA value */
+    msr CONTROL, r3
+    isb
+#endif /* CONFIG_FPU */
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
 
 #if defined(CONFIG_MPU_STACK_GUARD) || defined(CONFIG_USERSPACE)
     /* Re-program dynamic memory map */

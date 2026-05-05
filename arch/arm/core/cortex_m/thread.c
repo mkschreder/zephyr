@@ -165,6 +165,23 @@ void arch_new_thread(struct k_thread *thread, k_thread_stack_t *stack, char *sta
 	thread->arch.basepri = 0;
 #endif
 
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+	/*
+	 * Initialize the per-thread PSPLIM_NS to zero (no NS stack limit).
+	 * Threads that make Secure→NS calls update this on first BLXNS.
+	 * Reference: ARM DDI 0553B §B3.10 (PSPLIM_NS).
+	 */
+	thread->arch.psplim_ns = 0U;
+#if defined(CONFIG_FPU)
+	/* Initialize SFPA to 0 (Secure FP context not active initially). */
+	thread->arch.sfpa = 0U;
+#endif
+#if defined(CONFIG_ARM_TZ_CALL_ACTIVE_TRACKING)
+	/* No outstanding Secure→NS call on thread creation. */
+	thread->arch.security_call_active = 0U;
+#endif
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
+
 #ifdef CONFIG_ARM_PAC_PER_THREAD
 	/* Generate PAC key and save it in thread context to be set later
 	 * when the thread is actually switched in

@@ -164,6 +164,57 @@ struct _thread_arch {
 #if defined(CONFIG_ARM_PAC_PER_THREAD)
 	struct pac_keys pac_keys;
 #endif
+
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+	/*
+	 * Per-thread Non-Secure Process Stack Pointer Limit.
+	 *
+	 * When a Secure thread has an outstanding Secure→NS call via BLXNS,
+	 * PSP_NS and PSPLIM_NS hold the NS thread context.  Without per-thread
+	 * banking, a context switch between two Secure threads that each have
+	 * an outstanding NS call would overwrite these registers, leading to
+	 * a corrupted NS stack limit.
+	 *
+	 * Saved/restored in swap_helper.S z_arm_pendsv.
+	 * Reference: ARM DDI 0553B §B3.10 (PSPLIM_NS).
+	 */
+	uint32_t psplim_ns;
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
+
+#if defined(CONFIG_ARM_SECURE_FIRMWARE) && defined(CONFIG_FPU)
+	/*
+	 * Per-thread Secure FP Active flag (CONTROL_S.SFPA, bit 2).
+	 *
+	 * SFPA indicates whether the Secure FP context is currently active.
+	 * It is not saved by the hardware stacking mechanism and must be
+	 * banked per-thread to avoid cross-thread FP state corruption when
+	 * a context switch occurs while a Secure thread has an outstanding
+	 * NS call that triggered lazy FP save.
+	 *
+	 * Reference: ARM DDI 0553B §B3.16 (CONTROL_S.SFPA).
+	 */
+	uint8_t sfpa;
+#endif /* CONFIG_ARM_SECURE_FIRMWARE && CONFIG_FPU */
+
+#if defined(CONFIG_ARM_SECURE_FIRMWARE) && defined(CONFIG_ARM_TZ_CALL_ACTIVE_TRACKING)
+	/*
+	 * Secure-call-in-progress depth counter.
+	 *
+	 * Incremented on entry into a cmse_nonsecure_entry function (before
+	 * BLXNS) and decremented on return.  A non-zero value means this
+	 * thread currently has an outstanding Secure→NS call chain and must
+	 * not be migrated to a different CPU (for SMP) or have certain
+	 * scheduler decisions applied that would corrupt NS state.
+	 *
+	 * The counter rather than a simple flag supports nested/recursive
+	 * entry: while ARM DDI 0553B §C1.4.5 prohibits recursive SG, a
+	 * Secure thread may legitimately make several sequential NS calls.
+	 *
+	 * Access must be performed with interrupts disabled to avoid TOCTOU
+	 * races on the INC/DEC sequences.
+	 */
+	uint32_t security_call_active;
+#endif /* CONFIG_ARM_SECURE_FIRMWARE && CONFIG_ARM_TZ_CALL_ACTIVE_TRACKING */
 };
 
 #if defined(CONFIG_FPU_SHARING) && defined(CONFIG_MPU_STACK_GUARD)

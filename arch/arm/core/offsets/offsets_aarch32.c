@@ -63,6 +63,15 @@ GEN_OFFSET_SYM(_thread_arch_t, sp_usr);
 GEN_OFFSET_SYM(_thread_arch_t, preempt_float);
 #endif
 
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+/* Non-secure stack limit saved per-thread (DDI 0553B §B3.10). */
+GEN_OFFSET_SYM(_thread_arch_t, psplim_ns);
+#if defined(CONFIG_FPU)
+/* Secure CONTROL.SFPA bit saved per-thread (DDI 0553B §B3.16). */
+GEN_OFFSET_SYM(_thread_arch_t, sfpa);
+#endif /* CONFIG_FPU */
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
+
 GEN_OFFSET_SYM(_basic_sf_t, pc);
 GEN_OFFSET_SYM(_basic_sf_t, xpsr);
 

@@ -65,6 +65,16 @@
 	(___thread_t_arch_OFFSET + ___thread_arch_t_pac_keys_OFFSET)
 #endif
 
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+#define _thread_offset_to_psplim_ns \
+	(___thread_t_arch_OFFSET + ___thread_arch_t_psplim_ns_OFFSET)
+#endif
+
+#if defined(CONFIG_ARM_SECURE_FIRMWARE) && defined(CONFIG_FPU)
+#define _thread_offset_to_sfpa \
+	(___thread_t_arch_OFFSET + ___thread_arch_t_sfpa_OFFSET)
+#endif
+
 /* end - threads */
 
 #endif /* ZEPHYR_ARCH_ARM_INCLUDE_OFFSETS_SHORT_ARCH_H_ */
