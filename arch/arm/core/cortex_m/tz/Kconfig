@@ -75,4 +75,211 @@ config ARM_ENTRY_VENEERS_LIB_NAME
 
 endmenu
 
+config ARM_TZ_AIRCR_BFHFNMINS
+	bool "Route BusFault, HardFault, NMI to Non-Secure state"
+	depends on ARM_SECURE_FIRMWARE
+	depends on !ARM_SECURE_BUSFAULT_HARDFAULT_NMI
+	default y
+	help
+	  Sets AIRCR.BFHFNMINS=1 so that BusFault, HardFault, and NMI can be
+	  handled by Non-Secure firmware.  Faults that occur while in Secure
+	  state still escalate to SecureFault / SecureHardFault.
+
+	  Setting this to n keeps all three exceptions Secure-only.  Disabled
+	  automatically when ARM_SECURE_BUSFAULT_HARDFAULT_NMI is set (which
+	  means the user wants them Secure).
+
+	  Reference: ARM DDI 0553B §D1.2.2 AIRCR.BFHFNMINS.
+
+config ARM_TZ_AIRCR_PRIS
+	bool "Separate NS/Secure interrupt priorities (AIRCR.PRIS)"
+	depends on ARM_SECURE_FIRMWARE
+	default y
+	help
+	  Sets AIRCR.PRIS=1 so that Non-Secure priorities are mapped to the
+	  lower half of the available priority range.  This prevents NS code
+	  from claiming the highest priority levels that would let it preempt
+	  critical Secure ISRs.
+
+	  Reference: ARM DDI 0553B §B3.2.6, §D1.2.2 AIRCR.PRIS.
+
+config ARM_TZ_AIRCR_SYSRESETREQS
+	bool "Restrict system reset to Secure state only (AIRCR.SYSRESETREQS)"
+	depends on ARM_SECURE_FIRMWARE
+	default y
+	help
+	  Sets AIRCR.SYSRESETREQS=1 so that Non-Secure code cannot trigger a
+	  system reset via SYSRESETREQ.  Only Secure firmware may reset the
+	  system.  Without this, malicious NS code could reset the chip and
+	  bypass security initialization.
+
+	  Reference: ARM DDI 0553B §D1.2.7 AIRCR.SYSRESETREQS.
+
+config ARM_TZ_CCR_S_TRD
+	bool "Disable Secure Thread re-entry (CCR_S.TRD)"
+	depends on ARM_SECURE_FIRMWARE
+	depends on CPU_HAS_ARM_SAU
+	default y
+	help
+	  Sets CCR_S.TRD=1 so that attempting to re-enter Secure Thread mode
+	  (e.g. by calling an SG veneer while already executing in Secure
+	  Thread mode) raises a SecureFault(INVEP) instead of silently
+	  succeeding.  Prevents SG re-entrancy attacks.
+
+	  Reference: ARM DDI 0553B §D1.2.13 CCR_S.TRD, §C1.4.181 worked example.
+
+config ARM_TZ_SECURE_DEBUG_DISABLE
+	bool "Disable Secure halting debug in production (DHCSR.S_SDE)"
+	depends on ARM_SECURE_FIRMWARE
+	default n
+	help
+	  Calls the weak hook z_arm_secure_debug_lockdown() during boot so
+	  that production firmware can prevent Secure halting debug access.
+	  Enable this for production builds; leave it disabled during
+	  development.
+
+	  Note: DHCSR.S_SDE is read-only from software; actual lockdown
+	  requires the SoC to blow the appropriate lifecycle fuses.  The hook
+	  provides the integration point.
+
+	  Reference: ARM DDI 0553B §H4.4.1 DHCSR.S_SDE.
+
+config ARM_TZ_CMSE_NONSECURE_CALLER_CHECK
+	bool "Enforce __cmse_nonsecure_caller() check at Secure entry functions"
+	depends on ARM_SECURE_FIRMWARE
+	depends on CPU_HAS_ARM_SAU
+	default y
+	help
+	  Makes the Z_ARM_TZ_REQUIRE_NS_CALLER() macro active.  When placed at
+	  the start of a Secure entry function, the macro calls
+	  __cmse_nonsecure_caller() and generates a SecureFault(INVEP) if the
+	  entry function was invoked from Secure state (bypassing the SG
+	  veneer).
+
+	  Reference: ARM DDI 0553B §C1.4.5.
+
+config ARM_NVIC_ITNS_DT
+	bool "Program NVIC_ITNS from device tree security attributes"
+	depends on ARM_SECURE_FIRMWARE
+	default y
+	help
+	  When enabled, the NVIC Target State (ITNS) registers are programmed
+	  at PRE_KERNEL_2 time from the compile-time IRQ list produced from
+	  DT interrupt specifiers that carry security = "non-secure".
+
+	  Board and SoC files provide the list of Non-Secure IRQ numbers via
+	  CONFIG_ARM_NVIC_ITNS_DT_NONSECURE_IRQS (a comma-separated list of
+	  absolute IRQ numbers, e.g. "5, 12, 23").
+
+	  Reference: ARM DDI 0553 §B3.13 (NVIC_ITNS).
+
+config ARM_NVIC_ITNS_DT_NONSECURE_IRQS
+	string "Comma-separated list of Non-Secure IRQ numbers (absolute)"
+	depends on ARM_NVIC_ITNS_DT
+	default ""
+	help
+	  Space-or-comma-separated list of absolute IRQ numbers (0-based
+	  external interrupt indices) that must be routed to the Non-Secure
+	  NVIC.  Board CMakeLists or SoC Kconfig fragments append to this.
+
+	  Example: "5, 12, 23"
+
+config ARM_NVIC_ITNS_DT_INIT_PRIORITY
+	int "NVIC ITNS DT driver initialization priority"
+	depends on ARM_NVIC_ITNS_DT
+	default 55
+	help
+	  SYS_INIT priority for the NVIC_ITNS DT driver within PRE_KERNEL_2.
+	  Must run before any driver that enables Non-Secure interrupts.
+
+config ARM_SAU_DT
+	bool "Program SAU regions from device tree"
+	depends on ARM_SECURE_FIRMWARE
+	depends on CPU_HAS_ARM_SAU
+	default y
+	help
+	  When enabled, SAU regions are programmed at POST_KERNEL time from
+	  device-tree nodes with compatible "arm,armv8m-sau-region" that are
+	  children of an "arm,armv8m-sau" node.  This replaces ad-hoc C code
+	  that writes SAU->RNR/RBAR/RLAR with hardcoded constants.
+
+	  Reference: ARM DDI 0553 §B3.4.
+
+config ARM_SAU_DT_INIT_PRIORITY
+	int "SAU DT driver initialization priority"
+	depends on ARM_SAU_DT
+	default 41
+	help
+	  SYS_INIT priority for the SAU DT driver.  Must run before any
+	  Non-Secure world launch.  POST_KERNEL priority 41 is placed after
+	  the kernel itself (40) and before most application initialization.
+
+config ARM_TZ_CALL_ACTIVE_TRACKING
+	bool "Track active Secure→NS calls per thread"
+	depends on ARM_SECURE_FIRMWARE
+	default y
+	help
+	  Adds a security_call_active depth counter to struct _thread_arch.
+	  The counter is incremented when a Secure entry function is entered
+	  from Non-Secure state and decremented on return.  Non-zero means
+	  the thread has an outstanding NS call chain in progress.
+
+	  This information is used by:
+	    - The per-entry-function mutex (ARM_TZ_ENTRY_MUTEX) to avoid
+	      whole-scheduler lock for concurrent NS entry arbitration.
+	    - Future SMP-aware TrustZone scheduling to pin threads that
+	      have active NS calls.
+
+	  Adds four bytes to each thread's _thread_arch structure.
+
+config ARM_TZ_ENTRY_MUTEX
+	bool "Per-entry-function mutex instead of scheduler-wide lock"
+	depends on ARM_TZ_CALL_ACTIVE_TRACKING
+	default y
+	help
+	  When enabled, the TZ_THREAD_SAFE_NONSECURE_ENTRY_FUNC() macro uses
+	  a per-function k_mutex rather than k_sched_lock() + k_sched_unlock()
+	  to serialize concurrent NS→Secure calls.  This prevents whole-system
+	  scheduler serialization during NS calls.
+
+	  Disable if the target application never calls the same Secure entry
+	  function concurrently and wants to minimize code size.
+
+config ARM_TZ_SECURE_CALL_WATCHDOG
+	bool "Watchdog integration for Secure-call timeout"
+	depends on ARM_TZ_CALL_ACTIVE_TRACKING
+	depends on WATCHDOG
+	default n
+	help
+	  Feeds a WDT channel on every completed Secure→NS→Secure round-trip
+	  via the Z_ARM_TZ_NS_ENTRY_WDOG_FEED() wrapper.  If the NS world
+	  stalls for longer than the watchdog window, the WDT fires.
+
+	  Requires a board-supplied watchdog device alias "tz-wdog".
+
+	  Reference: ARM DDI 0553B §C1.4 (NS call rules).
+
+config ARM_TZ_CROSS_CORE
+	bool "TrustZone cross-core security coordination driver"
+	depends on ARM_SECURE_FIRMWARE
+	default n
+	help
+	  Enable the skeleton driver for the arm,trustzone-cross-core
+	  Devicetree binding.  Provides weak hooks for SoC BSPs to implement
+	  vendor-specific cross-core security signalling (e.g. nRF5340 IPC,
+	  STM32H7 IPCC, i.MX8 SEMA42).
+
+	  Required on dual-core SoCs where the Secure world must coordinate
+	  lifecycle events (NS reset, security escalation) with a second core.
+
+	  Reference: ARM DDI 0553B §A1.3.2 (multi-core TrustZone).
+
+config ARM_TZ_CROSS_CORE_INIT_PRIORITY
+	int "TrustZone cross-core driver initialization priority"
+	depends on ARM_TZ_CROSS_CORE
+	default 30
+	help
+	  SYS_INIT priority within PRE_KERNEL_1.  Must run before any code
+	  that sends or expects cross-core security notifications.
+
 endif # ARM_TRUSTZONE_M
