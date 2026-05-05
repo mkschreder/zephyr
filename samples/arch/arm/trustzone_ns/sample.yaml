@@ -1,0 +1,22 @@
+sample:
+  name: TrustZone Non-Secure Reference Application
+  description: >
+    Demonstrates a minimal ARMv8-M Non-Secure world firmware using Zephyr.
+    Calls Secure entry functions from the paired trustzone_secure sample via
+    the SG veneer library produced by `west secure-build`.  Uses the
+    per-entry-function mutex (TZ_THREAD_SAFE_NONSECURE_ENTRY_FUNC_MUTEX) to
+    serialise concurrent NS→Secure calls without locking the whole scheduler.
+
+    Build pair with:
+      west secure-build -b mps2/an521/cpu0/secure
+                        --s-dir samples/arch/arm/trustzone_secure
+                        --ns-dir samples/arch/arm/trustzone_ns
+
+  tags:
+    - arm
+    - trustzone
+    - security
+
+  platform_allow:
+    - mps2/an521/cpu0/ns
+    - lpcxpresso55s69/lpc55s69/cpu1/ns

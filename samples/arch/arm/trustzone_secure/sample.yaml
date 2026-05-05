@@ -1,0 +1,20 @@
+sample:
+  name: TrustZone Secure Reference Application
+  description: >
+    Demonstrates a minimal ARMv8-M Secure world firmware using Zephyr.
+    Programs the SAU from device tree, exposes two Secure entry functions
+    accessible from Non-Secure state, then hands control to the NS world
+    via arm_tz_launch_nonsecure().
+
+    Build with:
+      west secure-build -b mps2/an521/cpu0/secure --s-dir samples/arch/arm/trustzone_secure
+                        --ns-dir samples/arch/arm/trustzone_ns
+
+  tags:
+    - arm
+    - trustzone
+    - security
+
+  platform_allow:
+    - mps2/an521/cpu0/secure
+    - lpcxpresso55s69/lpc55s69/cpu0/secure
