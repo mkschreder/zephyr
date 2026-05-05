@@ -26,11 +26,14 @@
 #define SAU_DT_REGION_COUNT \
 	DT_CHILD_NUM_STATUS_OKAY(SAU_NODE)
 
-/* Helper macros that expand over every child region node. */
-#define SAU_BASE(n)  DT_REG_ADDR(n)
-#define SAU_SIZE(n)  DT_REG_SIZE(n)
-#define SAU_NSC(n)   DT_PROP(n, nsc)
-#define SAU_END(n)   (SAU_BASE(n) + SAU_SIZE(n) - 1U)
+/* Helper macros that expand over every child region node.
+ * NOTE: names are prefixed SAU_DT_ to avoid shadowing the CMSIS SAU_BASE
+ * object-like macro, which would break the SAU peripheral pointer.
+ */
+#define SAU_DT_BASE(n)  DT_REG_ADDR(n)
+#define SAU_DT_SIZE(n)  DT_REG_SIZE(n)
+#define SAU_DT_NSC(n)   DT_PROP(n, nsc)
+#define SAU_DT_END(n)   (SAU_DT_BASE(n) + SAU_DT_SIZE(n) - 1U)
 
 /*
  * Compile-time validation (DDI 0553 §B3.4.4):
@@ -39,13 +42,13 @@
  *   (i.e. (base + size - 1) & 0x1F == 0x1F, so size is a multiple of 32).
  */
 #define SAU_REGION_ASSERT(n)                                                  \
-	BUILD_ASSERT((SAU_BASE(n) & 0x1FU) == 0U,                            \
+	BUILD_ASSERT((SAU_DT_BASE(n) & 0x1FU) == 0U,                         \
 		     "SAU region " DT_NODE_FULL_NAME(n)                       \
 		     ": base address must be 32-byte aligned (DDI 0553 §B3.4.4)"); \
-	BUILD_ASSERT((SAU_SIZE(n) & 0x1FU) == 0U,                            \
+	BUILD_ASSERT((SAU_DT_SIZE(n) & 0x1FU) == 0U,                         \
 		     "SAU region " DT_NODE_FULL_NAME(n)                       \
 		     ": size must be a multiple of 32 bytes (DDI 0553 §B3.4.4)"); \
-	BUILD_ASSERT(SAU_SIZE(n) > 0U,                                        \
+	BUILD_ASSERT(SAU_DT_SIZE(n) > 0U,                                     \
 		     "SAU region " DT_NODE_FULL_NAME(n) ": size must not be zero");
 
 DT_FOREACH_CHILD_STATUS_OKAY(SAU_NODE, SAU_REGION_ASSERT)
@@ -74,9 +77,9 @@ static int z_arm_sau_dt_init(void)
 
 #define SAU_PROGRAM_REGION(n)                                                  \
 	{                                                                      \
-		uint32_t base = (uint32_t)SAU_BASE(n);                        \
-		uint32_t end  = (uint32_t)SAU_END(n);                         \
-		bool     nsc  = SAU_NSC(n);                                   \
+		uint32_t base = (uint32_t)SAU_DT_BASE(n);                     \
+		uint32_t end  = (uint32_t)SAU_DT_END(n);                      \
+		bool     nsc  = SAU_DT_NSC(n);                                \
 		SAU->RNR  = idx;                                               \
 		SAU->RBAR = base & SAU_RBAR_BADDR_Msk;                        \
 		SAU->RLAR = (end & SAU_RLAR_LADDR_Msk)                        \
