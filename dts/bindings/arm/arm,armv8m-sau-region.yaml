@@ -1,0 +1,30 @@
+# Copyright 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  ARMv8-M Security Attribution Unit (SAU) region.
+
+  Each enabled child of an arm,armv8m-sau node describes one SAU region.
+  Regions are programmed in ascending numerical order (reg index) at boot.
+
+  Reference: ARM DDI 0553 §B3.4 (SAU programmer's model).
+
+compatible: "arm,armv8m-sau-region"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+    description: |
+      Two-cell specifier: <base-address size>.
+      base-address must be 32-byte aligned (DDI 0553 §B3.4.4 RBAR.BADDR).
+      (base-address + size - 1) gives the last byte; the SAU RLAR stores
+      bits [31:5] of that address, so size must be a multiple of 32 bytes.
+
+  nsc:
+    type: boolean
+    description: |
+      When present, mark the region as Non-Secure Callable (NSC).
+      NSC regions contain SG veneers and must be mapped in the SAU with
+      RLAR.NSC=1. DDI 0553 §B3.4.5.

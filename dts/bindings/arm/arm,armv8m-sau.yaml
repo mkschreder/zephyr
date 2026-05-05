@@ -1,0 +1,48 @@
+# Copyright 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  ARMv8-M Security Attribution Unit (SAU) controller.
+
+  Declare the SAU and its regions in the device tree so that Zephyr can
+  program security attribution automatically at boot without ad-hoc C code.
+
+  Example (Cortex-M33, two regions):
+
+    sau: sau@e000edd0 {
+        compatible = "arm,armv8m-sau";
+        reg = <0xe000edd0 0x14>;
+
+        /* 0x00000000-0x0fffffff: Non-Secure flash */
+        region0: region@0 {
+            compatible = "arm,armv8m-sau-region";
+            reg = <0x00000000 0x10000000>;
+        };
+
+        /* 0x0ffe0000-0x0fffffff: Non-Secure Callable veneer window */
+        region1: region@1 {
+            compatible = "arm,armv8m-sau-region";
+            reg = <0x0ffe0000 0x20000>;
+            nsc;
+        };
+    };
+
+  Reference: ARM DDI 0553 §B3.4.
+
+compatible: "arm,armv8m-sau"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  "#address-cells":
+    type: int
+    const: 1
+    description: Number of address cells for child region nodes.
+
+  "#size-cells":
+    type: int
+    const: 1
+    description: Number of size cells for child region nodes.

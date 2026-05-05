@@ -32,6 +32,8 @@ add_subdirectory_ifdef(CONFIG_CPU_CORTEX_M_HAS_CMSE cortex_m/cmse)
 add_subdirectory_ifdef(CONFIG_ARM_SECURE_FIRMWARE cortex_m/tz)
 add_subdirectory_ifdef(CONFIG_ARM_NONSECURE_FIRMWARE cortex_m/tz)
 
+zephyr_library_sources_ifdef(CONFIG_ARM_SAU_DT cortex_m/sau.c)
+
 add_subdirectory_ifdef(CONFIG_ARM_MPU mpu)
 add_subdirectory_ifdef(CONFIG_ARM_AARCH32_MMU mmu)
 
