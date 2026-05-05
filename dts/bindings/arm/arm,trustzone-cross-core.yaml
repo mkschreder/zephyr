@@ -1,0 +1,54 @@
+# Copyright 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  ARM TrustZone cross-core security coordination binding.
+
+  Used on dual-core SoCs where one core runs the Secure world and another
+  runs the Non-Secure world, and where a hardware mechanism (mailbox, shared
+  memory, or vendor security controller) must coordinate security state
+  across the core boundary.
+
+  Examples:
+    - Nordic nRF5340 (Application Core = NS, Network Core = Secure)
+    - STM32H745 / STM32H755 (Cortex-M7 S + Cortex-M4 NS)
+
+  Child nodes describe the communication/coordination resource:
+    - shared-memory regions visible to both cores
+    - mailbox channels used for security notifications
+
+  Reference: ARM DDI 0553B §A1.3.2 (multi-core TrustZone).
+
+compatible: "arm,trustzone-cross-core"
+
+properties:
+  secure-core:
+    type: phandle
+    required: true
+    description: |
+      Phandle to the CPU node that runs the Secure firmware.
+
+  nonsecure-core:
+    type: phandle
+    required: true
+    description: |
+      Phandle to the CPU node that runs the Non-Secure firmware.
+
+  shared-memory:
+    type: phandle
+    required: false
+    description: |
+      Phandle to a shared memory region (e.g. a fixed-partition node) used
+      for cross-core security state communication.
+
+  mailbox:
+    type: phandle
+    required: false
+    description: |
+      Phandle to a mailbox / IPC node used to signal security events
+      (e.g. NS firmware reset notification) across cores.
+
+  label:
+    type: string
+    required: false
+    description: Human-readable identifier for this cross-core coordinator.
