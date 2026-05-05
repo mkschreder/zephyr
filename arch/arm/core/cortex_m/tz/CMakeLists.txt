@@ -3,6 +3,11 @@
 # '-mcmse' enables the generation of code for the Secure state of the ARMv8-M
 # Security Extensions. This option is required when building a Secure firmware.
 
+# TrustZone-M handoff helper (NS world launch from Secure firmware).
+zephyr_library()
+zephyr_library_sources_ifdef(CONFIG_ARM_SECURE_FIRMWARE handoff.c)
+zephyr_library_sources_ifdef(CONFIG_ARM_SECURE_FIRMWARE secure_lockdown.c)
+
 zephyr_compile_options_ifdef(CONFIG_ARM_SECURE_FIRMWARE $<$<COMPILE_LANGUAGE:C>:$<TARGET_PROPERTY:compiler,cmse>>)
 zephyr_compile_options_ifdef(CONFIG_ARM_SECURE_FIRMWARE $<$<COMPILE_LANGUAGE:CXX>:$<TARGET_PROPERTY:compiler,cmse>>)
 zephyr_compile_options_ifdef(CONFIG_ARM_SECURE_FIRMWARE $<$<COMPILE_LANGUAGE:ASM>:$<TARGET_PROPERTY:asm,cmse>>)
