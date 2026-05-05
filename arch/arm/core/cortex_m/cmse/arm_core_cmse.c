@@ -44,6 +44,18 @@ static int arm_cmse_addr_range_read_write_ok(uint32_t addr, uint32_t size, int f
 {
 	int flags = 0;
 
+	/*
+	 * Belt-and-braces overflow guard (DDI 0553 §B3.4 / ACLE §13.4):
+	 * If addr+size wraps the 32-bit address space the computed end address
+	 * would fall inside Secure memory, potentially letting an NS caller
+	 * trick a Secure entry function into operating on Secure data.
+	 * The ACLE intrinsic is required to reject this, but we check
+	 * explicitly so a non-conformant toolchain cannot regress us.
+	 */
+	if (size == 0U || addr > (UINT32_MAX - size + 1U)) {
+		return 0;
+	}
+
 	if (force_npriv != 0) {
 		flags |= CMSE_MPU_UNPRIV;
 	}
@@ -137,6 +149,11 @@ static int arm_cmse_addr_range_nonsecure_read_write_ok(uint32_t addr, uint32_t s
 						       int force_npriv, int rw)
 {
 	int flags = CMSE_NONSECURE;
+
+	/* Same overflow guard as arm_cmse_addr_range_read_write_ok (DDI 0553 §B3.4). */
+	if (size == 0U || addr > (UINT32_MAX - size + 1U)) {
+		return 0;
+	}
 
 	if (force_npriv != 0) {
 		flags |= CMSE_MPU_UNPRIV;
