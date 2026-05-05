@@ -1,0 +1,15 @@
+tests:
+  arm_trustzone:
+    tags: arm trustzone
+    platform_allow:
+      - mps2_an521/mps2/cpu0/ns
+      - mps2_an521/mps2/cpu0
+      - qemu_cortex_m33
+    integration_platforms:
+      - qemu_cortex_m33
+    harness: ztest
+    timeout: 90
+    extra_configs:
+      - CONFIG_ARM_TRUSTZONE_M=y
+      - CONFIG_TRUSTED_EXECUTION_SECURE=y
+      - CONFIG_EXTRA_EXCEPTION_INFO=y
