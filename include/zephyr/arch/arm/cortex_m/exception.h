@@ -100,6 +100,16 @@ struct __extra_esf_info {
 	_callee_saved_t *callee;
 	uint32_t msp;
 	uint32_t exc_return;
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+	/*
+	 * Snapshot of SAU->SFSR and SAU->SFAR taken *before* the sticky bits
+	 * are cleared in secure_fault().  The fatal-error handler can inspect
+	 * these fields to determine the exact SecureFault cause even after the
+	 * hardware registers have been cleared.  (DDI 0553 §D1.2.266/267)
+	 */
+	uint32_t secure_fault_status;  /* SAU->SFSR at fault entry */
+	uint32_t secure_fault_address; /* SAU->SFAR (valid when SFARVALID=1) */
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
 };
 #endif /* CONFIG_EXTRA_EXCEPTION_INFO */
 

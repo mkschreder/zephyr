@@ -106,7 +106,16 @@ static void fault_show(const struct arch_esf *esf, int fault)
 	PR_EXC("MMFSR: 0x%x, BFSR: 0x%x, UFSR: 0x%x", SCB_CFSR_MEMFAULTSR, SCB_CFSR_BUSFAULTSR,
 	       SCB_CFSR_USGFAULTSR);
 #if defined(CONFIG_ARM_SECURE_FIRMWARE)
+#if defined(CONFIG_EXTRA_EXCEPTION_INFO)
+	/* Use the pre-clear snapshot from ESF (set by secure_fault()). */
+	if (esf != NULL) {
+		PR_EXC("SFSR: 0x%x", esf->extra_info.secure_fault_status);
+	} else {
+		PR_EXC("SFSR: 0x%x", SAU->SFSR);
+	}
+#else
 	PR_EXC("SFSR: 0x%x", SAU->SFSR);
+#endif /* CONFIG_EXTRA_EXCEPTION_INFO */
 #endif /* CONFIG_ARM_SECURE_FIRMWARE */
 #endif /* CONFIG_ARMV7_M_ARMV8_M_MAINLINE */
 }
@@ -558,37 +567,60 @@ static uint32_t secure_fault(const struct arch_esf *esf)
 
 	PR_FAULT_INFO("***** SECURE FAULT *****");
 
-	STORE_xFAR(sfar, SAU->SFAR);
-	if ((SAU->SFSR & SAU_SFSR_SFARVALID_Msk) != 0) {
-		PR_EXC("  Address: 0x%x", sfar);
+	/*
+	 * Snapshot SFSR and SFAR *before* clearing the sticky bits so that
+	 * the fatal-error handler (k_sys_fatal_error_handler) can inspect
+	 * the exact cause.  DDI 0553 §D1.2.266: SFSR bits are w1c sticky;
+	 * once cleared the hardware no longer reports the fault reason.
+	 *
+	 * The snapshot is stored in the ESF extra_info when
+	 * CONFIG_EXTRA_EXCEPTION_INFO is enabled; callers that did not
+	 * enable that option can still read the values before any clearing
+	 * via the PR_EXC output below.
+	 */
+	uint32_t sfsr_snapshot = SAU->SFSR;
+	uint32_t sfar_snapshot = SAU->SFAR;
+
+#if defined(CONFIG_EXTRA_EXCEPTION_INFO)
+	if (esf != NULL) {
+		/* Cast away const – the snapshot fields are write-once metadata. */
+		struct arch_esf *mutable_esf = (struct arch_esf *)(uintptr_t)esf;
+
+		mutable_esf->extra_info.secure_fault_status  = sfsr_snapshot;
+		mutable_esf->extra_info.secure_fault_address = sfar_snapshot;
+	}
+#endif /* CONFIG_EXTRA_EXCEPTION_INFO */
+
+	if ((sfsr_snapshot & SAU_SFSR_SFARVALID_Msk) != 0) {
+		PR_EXC("  Address: 0x%x", sfar_snapshot);
 	}
 
 	/* bits are sticky: they stack and must be reset */
-	if ((SAU->SFSR & SAU_SFSR_INVEP_Msk) != 0) {
+	if ((sfsr_snapshot & SAU_SFSR_INVEP_Msk) != 0) {
 		reason = K_ERR_ARM_SECURE_ENTRY_POINT;
 		PR_FAULT_INFO("  Invalid entry point");
-	} else if ((SAU->SFSR & SAU_SFSR_INVIS_Msk) != 0) {
+	} else if ((sfsr_snapshot & SAU_SFSR_INVIS_Msk) != 0) {
 		reason = K_ERR_ARM_SECURE_INTEGRITY_SIGNATURE;
 		PR_FAULT_INFO("  Invalid integrity signature");
-	} else if ((SAU->SFSR & SAU_SFSR_INVER_Msk) != 0) {
+	} else if ((sfsr_snapshot & SAU_SFSR_INVER_Msk) != 0) {
 		reason = K_ERR_ARM_SECURE_EXCEPTION_RETURN;
 		PR_FAULT_INFO("  Invalid exception return");
-	} else if ((SAU->SFSR & SAU_SFSR_AUVIOL_Msk) != 0) {
+	} else if ((sfsr_snapshot & SAU_SFSR_AUVIOL_Msk) != 0) {
 		reason = K_ERR_ARM_SECURE_ATTRIBUTION_UNIT;
 		PR_FAULT_INFO("  Attribution unit violation");
-	} else if ((SAU->SFSR & SAU_SFSR_INVTRAN_Msk) != 0) {
+	} else if ((sfsr_snapshot & SAU_SFSR_INVTRAN_Msk) != 0) {
 		reason = K_ERR_ARM_SECURE_TRANSITION;
 		PR_FAULT_INFO("  Invalid transition");
-	} else if ((SAU->SFSR & SAU_SFSR_LSPERR_Msk) != 0) {
+	} else if ((sfsr_snapshot & SAU_SFSR_LSPERR_Msk) != 0) {
 		reason = K_ERR_ARM_SECURE_LAZY_STATE_PRESERVATION;
 		PR_FAULT_INFO("  Lazy state preservation");
-	} else if ((SAU->SFSR & SAU_SFSR_LSERR_Msk) != 0) {
+	} else if ((sfsr_snapshot & SAU_SFSR_LSERR_Msk) != 0) {
 		reason = K_ERR_ARM_SECURE_LAZY_STATE_ERROR;
 		PR_FAULT_INFO("  Lazy state error");
 	}
 
-	/* clear SFSR sticky bits */
-	SAU->SFSR |= 0xFF;
+	/* Clear SFSR sticky bits (write-1-to-clear per DDI 0553 §D1.2.266). */
+	SAU->SFSR = sfsr_snapshot;
 
 	return reason;
 }
@@ -760,6 +792,31 @@ static uint32_t hard_fault(struct arch_esf *esf, bool *recoverable)
 }
 
 /**
+ * @brief Weak hook for SecureFault recovery.
+ *
+ * Platform code may override this function to handle recoverable SecureFaults
+ * (e.g. lazy-FP save errors during context switch).  The hook is called after
+ * secure_fault() has logged the fault and before z_arm_fatal_error() is
+ * invoked.
+ *
+ * @param sfsr  The SAU->SFSR value snapshotted *before* clearing.
+ * @param sfar  The SAU->SFAR value (valid when SFSR.SFARVALID=1).
+ * @param esf   Exception stack frame pointer.
+ *
+ * @return 0 if the fault should be treated as fatal (default).
+ *         Non-zero if the fault is recoverable and execution can continue.
+ *
+ * Reference: ARM DDI 0553B §D1.2.266 (SFSR/SFAR).
+ */
+__weak int z_arm_secure_fault_hook(uint32_t sfsr, uint32_t sfar, struct arch_esf *esf)
+{
+	ARG_UNUSED(sfsr);
+	ARG_UNUSED(sfar);
+	ARG_UNUSED(esf);
+	return 0;
+}
+
+/**
  *
  * @brief Dump reserved exception information
  *
@@ -798,9 +855,22 @@ static uint32_t fault_handle(struct arch_esf *esf, int fault, bool *recoverable)
 		reason = usage_fault(esf);
 		break;
 #if defined(CONFIG_ARM_SECURE_FIRMWARE)
-	case 7:
+	case 7: {
+		/*
+		 * Snapshot SFSR/SFAR before secure_fault() clears them, then
+		 * call the recovery hook.  If the hook returns non-zero, the
+		 * fault is treated as recoverable and the thread can continue.
+		 */
+		uint32_t sfsr_hook = SAU->SFSR;
+		uint32_t sfar_hook = SAU->SFAR;
+
 		reason = secure_fault(esf);
+
+		if (z_arm_secure_fault_hook(sfsr_hook, sfar_hook, esf) != 0) {
+			*recoverable = true;
+		}
 		break;
+	}
 #endif /* CONFIG_ARM_SECURE_FIRMWARE */
 	case 12:
 		debug_monitor(esf, recoverable);

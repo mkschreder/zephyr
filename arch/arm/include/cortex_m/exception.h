@@ -30,6 +30,21 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Safe AIRCR read-modify-write (DDI 0553B §D1.2.2).
+ *
+ * Performs an RMW on SCB->AIRCR that preserves VECTKEY and all bits not
+ * selected by @p mask.  All AIRCR modifications should use this helper to
+ * avoid accidentally clearing PRIS / SYSRESETREQS / BFHFNMINS.
+ *
+ * @param mask  Bits to modify.
+ * @param value New values for those bits.
+ */
+void z_arm_aircr_set(uint32_t mask, uint32_t value);
+
+#ifdef __cplusplus
+#endif
+
 #ifdef CONFIG_IRQ_OFFLOAD
 extern volatile irq_offload_routine_t offload_routine;
 #endif
@@ -180,13 +195,14 @@ static ALWAYS_INLINE void z_arm_exc_setup(void)
 #endif /* CONFIG_CPU_CORTEX_M_HAS_PROGRAMMABLE_FAULT_PRIOS */
 
 #if defined(CONFIG_ARM_SECURE_FIRMWARE) && !defined(CONFIG_ARM_SECURE_BUSFAULT_HARDFAULT_NMI)
-	/* Set NMI, Hard, and Bus Faults as Non-Secure.
-	 * NMI and Bus Faults targeting the Secure state will
-	 * escalate to a SecureFault or SecureHardFault.
+	/*
+	 * Set NMI, Hard, and Bus Faults as Non-Secure so they can be handled
+	 * by NS code.  NMI/BusFault in Secure state escalate to SecureFault.
+	 *
+	 * Use z_arm_aircr_set() so that PRIS and SYSRESETREQS (set elsewhere)
+	 * are not accidentally cleared.  DDI 0553B §D1.2.2 AIRCR.BFHFNMINS.
 	 */
-	SCB->AIRCR =
-		(SCB->AIRCR & (~(SCB_AIRCR_VECTKEY_Msk))) | SCB_AIRCR_BFHFNMINS_Msk |
-		((AIRCR_VECT_KEY_PERMIT_WRITE << SCB_AIRCR_VECTKEY_Pos) & SCB_AIRCR_VECTKEY_Msk);
+	z_arm_aircr_set(SCB_AIRCR_BFHFNMINS_Msk, SCB_AIRCR_BFHFNMINS_Msk);
 	/* Note: Fault conditions that would generate a SecureFault
 	 * in a PE with the Main Extension instead generate a
 	 * SecureHardFault in a PE without the Main Extension.
