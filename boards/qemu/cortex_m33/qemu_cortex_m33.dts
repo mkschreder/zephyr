@@ -60,6 +60,22 @@
 	};
 
 	soc {
+		/*
+		 * SAU (Security Attribution Unit): standard ARM Cortex-M33
+		 * system control space, §4.2 of DDI 0553.  No DT-configured
+		 * regions are needed here — the TrustZone tests configure the
+		 * SAU programmatically.  The node must exist so that sau.c can
+		 * compile (DT_NODELABEL(sau) must resolve to a valid node).
+		 * status = "disabled" suppresses the SYS_INIT auto-programming.
+		 */
+		sau: sau@e000edd0 {
+			compatible = "arm,armv8m-sau";
+			reg = <0xe000edd0 0x14>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			status = "disabled";
+		};
+
 		uart0: uart@4000c000 {
 			compatible = "arm,pl011";
 			reg = <0x4000c000 0x1000>;
