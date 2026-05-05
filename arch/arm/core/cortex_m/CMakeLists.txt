@@ -31,12 +31,28 @@ zephyr_library_sources(
   prep_c.c
   thread.c
   cpu_idle.c
+  aircr.c
   )
 
 zephyr_library_sources_ifdef(CONFIG_USE_SWITCH arm-m-switch.c)
 zephyr_library_sources_ifndef(CONFIG_USE_SWITCH exc_exit.c thread_abort.c swap_helper.S)
 
 zephyr_library_sources_ifndef(CONFIG_ARM_CUSTOM_INTERRUPT_CONTROLLER irq_init.c)
+if(CONFIG_ARM_NVIC_ITNS_DT)
+  zephyr_library_sources(irq_init_secure.c)
+  # Kconfig string CONFIG_ARM_NVIC_ITNS_DT_NONSECURE_IRQS is quoted ("5,12"),
+  # which cannot be used directly as a C array initializer.  When non-empty,
+  # re-expose it as ARM_NVIC_ITNS_IRQ_LIST without quotes so the C code can
+  # use it as {5, 12, ...} in a uint16_t array.
+  if(NOT "${CONFIG_ARM_NVIC_ITNS_DT_NONSECURE_IRQS}" STREQUAL "")
+    zephyr_compile_definitions(
+      ARM_NVIC_ITNS_IRQ_LIST=${CONFIG_ARM_NVIC_ITNS_DT_NONSECURE_IRQS}
+    )
+  endif()
+endif()
+if(CONFIG_ARM_SECURE_FIRMWARE AND CONFIG_FPU AND CONFIG_FPU_SHARING)
+  zephyr_library_sources(tz_fp.c)
+endif()
 zephyr_library_sources_ifdef(CONFIG_GEN_SW_ISR_TABLE isr_wrapper.c)
 zephyr_library_sources_ifdef(CONFIG_DEBUG_COREDUMP coredump.c)
 zephyr_library_sources_ifdef(CONFIG_THREAD_LOCAL_STORAGE __aeabi_read_tp.S)
