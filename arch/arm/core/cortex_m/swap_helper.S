@@ -121,11 +121,8 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
 #endif /* CONFIG_ARM_SECURE_FIRMWARE && CONFIG_FPU && CONFIG_FPU_SHARING */
 
 #if defined(CONFIG_ARM_SECURE_FIRMWARE)
-    /* Save PSPLIM_NS per-thread (DDI 0553B §B3.10).
-     * PSPLIM_NS SYSm = 0x1B: MRS r0, PSPLIM_NS
-     * hw1=0xF3EF hw2=0x800B|0x1000 = 0x801B → full word 0xF3EF801B
-     */
-    .inst.w 0xF3EF801B          /* MRS r0, PSPLIM_NS (SYSm=0x1B) */
+    /* Save PSPLIM_NS per-thread (DDI 0553B §B3.10). */
+    mrs r0, PSPLIM_NS
     str r0, [r2, #_thread_offset_to_psplim_ns]
 #if defined(CONFIG_FPU)
     /* Save CONTROL_S.SFPA (bit 2) per-thread (DDI 0553B §B3.16).
@@ -323,7 +320,7 @@ SECTION_FUNC(TEXT, z_arm_pendsv)
      * hw1=0xF380 hw2=0x881B → full word 0xF380881B
      */
     ldr r0, [r2, #_thread_offset_to_psplim_ns]
-    .inst.w 0xF380881B          /* MSR PSPLIM_NS, r0 (SYSm=0x1B) */
+    msr PSPLIM_NS, r0
 #if defined(CONFIG_FPU)
     /* Restore CONTROL_S.SFPA for the incoming thread (DDI 0553B §B3.16). */
     ldrb r0, [r2, #_thread_offset_to_sfpa]

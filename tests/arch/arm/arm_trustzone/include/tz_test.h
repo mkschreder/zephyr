@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Martin Schröder <info@swedishembedded.com>
+ * Copyright (c) 2026 Zephyr Project contributors
  * SPDX-License-Identifier: Apache-2.0
  *
  * Shared harness for the arm_trustzone test suite.
@@ -22,18 +22,14 @@ extern "C" {
  * TT (Test Target) instruction helpers.
  * DDI 0553B §C2.338-340.
  *
- * TT r0, r1 — T1 encoding: 0xE841_F000
+ * Use the ACLE cmse_TT() intrinsic from <arm_cmse.h>.  GCC with -mcmse
+ * emits the correct "tt Rd, Rn" instruction directly.
  */
+#include <arm_cmse.h>
+
 static inline uint32_t __attribute__((always_inline)) tz_tt(uint32_t addr)
 {
-	uint32_t result;
-
-	__asm__ volatile(
-		"mov r1, %1\n\t"
-		".inst.w 0xE841F000\n\t"   /* TT r0, r1 */
-		"mov %0, r0\n\t"
-		: "=r"(result) : "r"(addr) : "r0", "r1");
-	return result;
+	return cmse_TT((void *)addr).value;
 }
 
 /* TT_RESP bitfield layout (DDI 0553B §D1.2.266) */

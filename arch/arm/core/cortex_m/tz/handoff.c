@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Martin Schröder <info@swedishembedded.com>
+ * Copyright (c) 2026 Zephyr Project contributors
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -63,17 +63,13 @@ void arm_tz_launch_nonsecure(const struct arm_tz_handoff_descriptor *desc)
 	__DSB();
 
 	/*
-	 * Step 2: Set MSP_NS (DDI 0553B §B3.17, MSPLIM_NS).
-	 * MRS/MSR SYSm=0x18 = MSP_NS, SYSm=0x1A = MSPLIM_NS.
+	 * Step 2: Set MSPLIM_NS and MSP_NS (DDI 0553B §B3.17).
+	 * CMSIS provides __TZ_set_MSPLIM_NS / __TZ_set_MSP_NS which expand
+	 * to "MSR msplim_ns, %0" / "MSR msp_ns, %0" — properly named
+	 * system register mnemonics recognized by GAS with -mcmse.
 	 */
-	__asm__ volatile(
-		"mov r0, %0\n\t"
-		".inst.w 0xF380881A\n\t"  /* MSR MSPLIM_NS, r0 (SYSm=0x1A) */
-		: : "r"((uint32_t)desc->psplim_ns) : "r0");
-	__asm__ volatile(
-		"mov r0, %0\n\t"
-		".inst.w 0xF3808818\n\t"  /* MSR MSP_NS, r0 (SYSm=0x18) */
-		: : "r"(msp_ns) : "r0");
+	__TZ_set_MSPLIM_NS((uint32_t)desc->psplim_ns);
+	__TZ_set_MSP_NS(msp_ns);
 	__DSB();
 
 	/*
@@ -89,20 +85,14 @@ void arm_tz_launch_nonsecure(const struct arm_tz_handoff_descriptor *desc)
 	/*
 	 * Step 4: Branch to NS reset vector using BXNS (DDI 0553B §C1.4.5).
 	 *
-	 * BXNS Rn: in Secure state, branches to the address in Rn and
-	 * transitions to Non-Secure state.  The LSB of Rn must be 1 (Thumb).
-	 *
-	 * We use an explicit `.inst.w 0x4718` (BXNS r3) because most
-	 * toolchains do not support BXNS in inline assembly without the
-	 * `__ARM_FEATURE_CMSE` macro.
-	 *
-	 * Encoding: BXNS Rn (T1):  1000 11 Rn[3:0] 0 0 0  (16-bit)
-	 *   Rn = r3 → 0b0100_0111_0001_1000 = 0x4718
+	 * BXNS <Rn>: branches to Rn and transitions to Non-Secure state.
+	 * The LSB of Rn must be 1 (Thumb).  GCC with -mcmse recognises
+	 * "bxns" as a valid mnemonic; the compiler selects the register.
 	 */
-	register uint32_t _reset_ns __asm__("r3") = reset_ns | 1U; /* ensure Thumb bit */
+	register uint32_t _reset_ns = reset_ns | 1U; /* ensure Thumb bit */
 
 	__asm__ volatile(
-		".inst.n 0x4718\n\t"   /* BXNS r3 */
+		"bxns %0\n\t"
 		: : "r"(_reset_ns) : "memory");
 
 	/* Unreachable: BXNS does not return to Secure world. */

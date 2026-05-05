@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 Martin Schröder <info@swedishembedded.com>
+ * Copyright (c) 2026 Zephyr Project contributors
  * SPDX-License-Identifier: Apache-2.0
  *
  * SAU register programming and TT instruction tests.
@@ -139,26 +139,23 @@ ZTEST(arm_trustzone, test_aircr_bfhfnmins_readwrite)
 
 /* --- Banked MSPLIM_S / MSPLIM_NS --------------------------------------- */
 
-#define _MRS_R0_MSPLIM_S   ".inst.w 0xF3EF800A\n\t"
-#define _MSR_MSPLIM_S_R0   ".inst.w 0xF380880A\n\t"
-#define _MRS_R0_MSPLIM_NS  ".inst.w 0xF3EF801A\n\t"
-#define _MSR_MSPLIM_NS_R0  ".inst.w 0xF380881A\n\t"
-
 ZTEST(arm_trustzone, test_msplim_banked_registers)
 {
 	uint32_t orig_s, orig_ns, rb_s, rb_ns;
 
-	__asm__ volatile(_MRS_R0_MSPLIM_S  "mov %0, r0\n\t" : "=r"(orig_s)  : : "r0");
-	__asm__ volatile(_MRS_R0_MSPLIM_NS "mov %0, r0\n\t" : "=r"(orig_ns) : : "r0");
+	/* GAS with -mcmse recognises MSPLIM and MSPLIM_NS as named system
+	 * registers (DDI 0553B SYSm=0x0A / 0x1A). */
+	__asm__ volatile("mrs %0, MSPLIM\n\t"    : "=r"(orig_s));
+	__asm__ volatile("mrs %0, MSPLIM_NS\n\t" : "=r"(orig_ns));
 
-	__asm__ volatile("mov r0, %0\n\t" _MSR_MSPLIM_S_R0  : : "r"(0x20001000U) : "r0");
-	__asm__ volatile("mov r0, %0\n\t" _MSR_MSPLIM_NS_R0 : : "r"(0x20003000U) : "r0");
+	__asm__ volatile("msr MSPLIM,    %0\n\t" : : "r"(0x20001000U));
+	__asm__ volatile("msr MSPLIM_NS, %0\n\t" : : "r"(0x20003000U));
 
-	__asm__ volatile(_MRS_R0_MSPLIM_S  "mov %0, r0\n\t" : "=r"(rb_s)  : : "r0");
-	__asm__ volatile(_MRS_R0_MSPLIM_NS "mov %0, r0\n\t" : "=r"(rb_ns) : : "r0");
+	__asm__ volatile("mrs %0, MSPLIM\n\t"    : "=r"(rb_s));
+	__asm__ volatile("mrs %0, MSPLIM_NS\n\t" : "=r"(rb_ns));
 
-	__asm__ volatile("mov r0, %0\n\t" _MSR_MSPLIM_S_R0  : : "r"(orig_s)  : "r0");
-	__asm__ volatile("mov r0, %0\n\t" _MSR_MSPLIM_NS_R0 : : "r"(orig_ns) : "r0");
+	__asm__ volatile("msr MSPLIM,    %0\n\t" : : "r"(orig_s));
+	__asm__ volatile("msr MSPLIM_NS, %0\n\t" : : "r"(orig_ns));
 
 	zassert_equal(rb_s & ~7U, 0x20001000U,
 		"MSPLIM_S: wrote 0x%08x, read 0x%08x", 0x20001000U, rb_s);
