@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2019 Nordic Semiconductor ASA
+ * Copyright (c) 2026 Zephyr Project contributors
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -39,6 +40,27 @@ __sg_end = .;
 __sg_size = __sg_end - __sg_start;
 NSC_ALIGN_END;
 __nsc_size = . - __sg_start;
+
+/*
+ * Generic SAU / NSC alignment assertions (DDI 0553 §B3.4.4 / §B3.5.3):
+ *
+ * 1. The SAU RBAR.BADDR field stores bits [31:5] of the region base, so
+ *    the NSC region must start on a 32-byte boundary.
+ * 2. Every veneer SG instruction must reside within the NSC window, so
+ *    __sg_end must not exceed the configured NSC region.
+ *
+ * These checks run unconditionally on any platform that has SAU entry
+ * veneers.  The nRF-specific check (below) adds extra SPU-region constraints
+ * on top of this generic baseline.
+ */
+ASSERT((__sg_size == 0) || ((__sg_start & 0x1F) == 0),
+	"NSC region (.gnu.sgstubs) start address must be 32-byte aligned \
+(ARM DDI 0553 §B3.4.4 RBAR.BADDR)")
+
+#if CONFIG_ARM_NSC_REGION_BASE_ADDRESS != 0
+ASSERT((__sg_size == 0) || (__sg_start >= CONFIG_ARM_NSC_REGION_BASE_ADDRESS),
+	"NSC region (.gnu.sgstubs) lies below CONFIG_ARM_NSC_REGION_BASE_ADDRESS")
+#endif
 
 /* nRF-specific ASSERT. */
 #ifdef CONFIG_CPU_HAS_NRF_IDAU
