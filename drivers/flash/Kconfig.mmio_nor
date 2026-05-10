@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Martin Schröder <info@swedishembedded.com>
+# SPDX-License-Identifier: Apache-2.0
+
+config FLASH_MMIO_NOR
+	bool "Memory-mapped NOR flash (read-only, vemu)"
+	default y
+	depends on DT_HAS_VEMU_MMIO_FLASH_ENABLED
+	select FLASH_HAS_DRIVER_ENABLED
+	help
+	  Minimal read-only driver for memory-mapped NOR flash on vemu boards.
+	  The flash region is file-backed and mapped directly to the CPU address
+	  space by vemu. Provides read access for MCUboot and Zephyr flash-map
+	  APIs. Write and erase operations are not supported (-ENOTSUP).

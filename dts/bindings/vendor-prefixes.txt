@@ -767,6 +767,7 @@ visionox	Visionox
 vitesse	Vitesse Semiconductor Corporation
 vivante	Vivante Corporation
 vnd	A stand-in for a real vendor which can be used in examples and tests
+vemu	vemu hardware emulator
 vngiotlab	VNGIoTLab
 vocore	VoCore Studio
 voipac	Voipac Technologies s.r.o.

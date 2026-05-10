@@ -1,0 +1,24 @@
+description: |
+  Memory-mapped NOR flash for vemu simulation boards.
+  The flash region is file-backed and mapped directly to the physical address
+  space by vemu. Provides read-only access; write and erase are not supported.
+
+compatible: "vemu,mmio-flash"
+
+include: [base.yaml, flash-controller.yaml]
+
+properties:
+  reg:
+    required: true
+
+  erase-block-size:
+    type: int
+    default: 4096
+    description: |
+      Erase block granularity in bytes (informational; erases not supported).
+
+  write-block-size:
+    type: int
+    default: 4
+    description: |
+      Minimum write granularity in bytes (informational; writes not supported).

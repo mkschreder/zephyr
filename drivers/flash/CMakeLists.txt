@@ -220,5 +220,7 @@ if(CONFIG_SOC_FLASH_RENESAS_RA_HP)
   zephyr_library_sources_ifdef(CONFIG_FLASH_EX_OP_ENABLED soc_flash_renesas_ra_hp_ex_op.c)
 endif()
 
+zephyr_library_sources_ifdef(CONFIG_FLASH_MMIO_NOR flash_mmio_nor.c)
+
 # Do not use prologue and epilogue code that uses library function calls
 zephyr_library_compile_options_ifdef(CONFIG_FLASH_ANDES_QSPI_XIP -mno-save-restore)

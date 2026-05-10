@@ -300,11 +300,18 @@ config ARM_NONSECURE_PREEMPTIBLE_SECURE_CALLS
 
 config ARM_STORE_EXC_RETURN
 	bool
-	default y if CPU_CORTEX_M && (FPU_SHARING || ARM_NONSECURE_PREEMPTIBLE_SECURE_CALLS)
+	default y if CPU_CORTEX_M && (FPU_SHARING || ARM_NONSECURE_PREEMPTIBLE_SECURE_CALLS || ARM_SECURE_FIRMWARE)
 	help
 	  Store the EXC_RETURN value when switching threads.
 	  This is needed when switching between threads that differ in either
 	  FPU usage or security domain.
+	  ARM_SECURE_FIRMWARE is included because after BXNS the Secure kernel
+	  continues to manage Secure threads while NS executes.  A Secure PendSV
+	  that preempts NS receives EXC_RETURN.S=0 (background=NS) on entry but
+	  must restore EXC_RETURN.S=1 (Secure Thread PSP) when switching to a
+	  Secure thread.  Without per-thread EXC_RETURN storage every Secure
+	  context switch would return to NS Thread mode and Secure threads would
+	  never execute (DDI0553B B3.19).
 
 choice
 	prompt "Floating point ABI"
