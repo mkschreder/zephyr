@@ -22,3 +22,13 @@ properties:
     default: 4
     description: |
       Minimum write granularity in bytes (informational; writes not supported).
+
+  max-erase-time:
+    type: int
+    description: |
+      Maximum erase time in milliseconds (informational; from st,stm32-nv-flash; ignored by vemu).
+
+  bank2-flash-size:
+    type: int
+    description: |
+      Flash bank 2 size in KBytes (informational; from st,stm32-nv-flash; ignored by vemu).
