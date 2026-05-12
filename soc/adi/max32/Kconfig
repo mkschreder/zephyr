@@ -98,7 +98,7 @@ endif # MAX32_SECONDARY_RV32
 endif # MAX32_HAS_SECONDARY_RV32
 
 config BUILD_WITH_TFM
-	default y if TRUSTED_EXECUTION_NONSECURE
+	default y if TRUSTED_EXECUTION_NONSECURE && TFM_BOARD != ""
 	help
 	  Auto set WITH_TFM for a Non-Secure version of the board,
 

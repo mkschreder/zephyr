@@ -106,7 +106,7 @@ config USE_DT_CODE_PARTITION
 	default y if TRUSTED_EXECUTION_NONSECURE
 
 config BUILD_WITH_TFM
-	default y if TRUSTED_EXECUTION_NONSECURE
+	default y if TRUSTED_EXECUTION_NONSECURE && TFM_BOARD != ""
 
 config FLASH_BASE_ADDRESS
 	default $(dt_node_reg_addr_hex,$(DT_CHOSEN_FLASH_PARENT),1) \
