@@ -1,0 +1,71 @@
+# Secure-boot vendor SDK submanifest for Steve.
+#
+# Adds:
+#   sdk-nrf  — Nordic Connect SDK providing NSIB (B0) for nRF5340.
+#              Source: nrf/subsys/bootloader/ and nrf/samples/bootloader/
+#              Group: secure-boot-nordic  (inactive by default, activate via
+#              `west config manifest.group-filter +secure-boot-nordic`)
+#
+#   stm32cube_h5 — STM32CubeH5 MCU package with STiRoT/OEMiRoT pre-compiled
+#                  blobs and signing tools.
+#                  Group: secure-boot-st
+#
+#   stm32cube_u5 — STM32CubeU5 MCU package with SBSFU/MCUboot-based protected
+#                  boot blobs.
+#                  Group: secure-boot-st
+#
+# Usage:
+#   Activate Nordic NSIB support:
+#     west config manifest.group-filter +secure-boot-nordic
+#     west update sdk-nrf
+#
+#   Activate ST secure boot support:
+#     west config manifest.group-filter +secure-boot-st
+#     west update stm32cube_h5 stm32cube_u5
+#
+# Both groups are off by default to keep the baseline workspace lean.
+# CI jobs that build NSIB or STiRoT artifacts must activate the relevant group.
+
+manifest:
+  remotes:
+    - name: nordicsemi
+      url-base: https://github.com/nrfconnect
+    - name: st-github
+      url-base: https://github.com/STMicroelectronics
+
+  projects:
+    # ── Nordic Connect SDK (NSIB / B0) ───────────────────────────────────────
+    # Pin to a v2.x LTS revision that is known-compatible with the Zephyr
+    # revision in the main west.yml.  Bump this when upgrading Zephyr.
+    - name: sdk-nrf
+      remote: nordicsemi
+      revision: v2.7.0
+      path: nrf
+      groups:
+        - secure-boot-nordic
+      import:
+        # Pull in the NCS west manifest so sub-projects such as nrfxlib and
+        # mbedtls patches are fetched correctly.  The local workspace projects
+        # take precedence over NCS-declared ones thanks to west's project
+        # override semantics.
+        - file: west.yml
+          name-allowlist:
+            - nrfxlib
+            - nrf-802154
+            - find-my
+
+    # ── STM32CubeH5 (STiRoT / OEMiRoT blobs + signing tools) ────────────────
+    - name: stm32cube_h5
+      remote: st-github
+      revision: v1.3.0
+      path: modules/hal/stm32cube/h5
+      groups:
+        - secure-boot-st
+
+    # ── STM32CubeU5 (SBSFU / TF-M MCUboot-based protected boot) ─────────────
+    - name: stm32cube_u5
+      remote: st-github
+      revision: v1.6.0
+      path: modules/hal/stm32cube/u5
+      groups:
+        - secure-boot-st
