@@ -999,8 +999,15 @@ static inline struct arch_esf *get_esf(uint32_t msp, uint32_t psp, uint32_t exc_
 		/* Handle the actual fault.
 		 * Extract the correct stack frame from the Non-Secure state
 		 * and supply it to the fault handing function.
+		 *
+		 * Use SPSEL (bit[2]) to determine which NS stack was active,
+		 * NOT the MODE bit (bit[3]).  In Thread mode the stack used
+		 * depends on CONTROL_NS.SPSEL (0 = MSP_NS, 1 = PSP_NS).
+		 * EXC_RETURN[2] reflects the active SPSEL at exception entry,
+		 * so it is the correct selector regardless of handler/thread mode.
+		 * (DDI0553B B3.22, Table B3-13, SPSEL field.)
 		 */
-		if (exc_return & EXC_RETURN_MODE_THREAD) {
+		if (exc_return & EXC_RETURN_SPSEL_PROCESS) {
 			ptr_esf = (struct arch_esf *)__TZ_get_PSP_NS();
 		} else {
 			ptr_esf = (struct arch_esf *)__TZ_get_MSP_NS();
