@@ -60,6 +60,13 @@ if(CONFIG_BUILD_WITH_TFM)
       list(APPEND TFM_CMAKE_ARGS -DMCUBOOT_USE_PSA_CRYPTO=ON)
       list(APPEND TFM_CMAKE_ARGS -DMCUBOOT_BUILTIN_KEY=ON)
       list(APPEND TFM_CMAKE_ARGS -DMCUBOOT_HW_KEY=OFF)
+    else()
+      # Empty signature type (e.g. vemu-fast builds): no ECDSA verification at
+      # runtime.  Keep MCUBOOT_USE_PSA_CRYPTO=ON so that PSA crypto types and
+      # the psa_stub_rng.c weak RNG shim compile correctly even without a
+      # specific algorithm selected.
+      list(APPEND TFM_CMAKE_ARGS -DMCUBOOT_USE_PSA_CRYPTO=ON)
+      list(APPEND TFM_CMAKE_ARGS -DMCUBOOT_HW_KEY=ON)
     endif()
 
     foreach(SUFFIX IN ITEMS "S" "NS")
