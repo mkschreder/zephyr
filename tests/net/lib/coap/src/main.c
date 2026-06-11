@@ -2136,9 +2136,9 @@ ZTEST(coap, test_no_response_option_suppress_2xx)
 	zassert_equal(r, 0, "Could not add No-Response option");
 
 	/* Check 2.xx responses - should be suppressed */
-	r = coap_no_response_check(&request, COAP_RESPONSE_CODE_OK, &suppress);
+	r = coap_no_response_check(&request, COAP_RESPONSE_CODE_CHANGED, &suppress);
 	zassert_equal(r, 0, "Failed to check No-Response option");
-	zassert_true(suppress, "Should suppress 2.00 OK");
+	zassert_true(suppress, "Should suppress 2.04 Changed");
 
 	r = coap_no_response_check(&request, COAP_RESPONSE_CODE_CONTENT, &suppress);
 	zassert_equal(r, 0, "Failed to check No-Response option");
@@ -5274,7 +5274,7 @@ ZTEST(coap, test_oscore_error_mapping_decryption_failures)
 
 	/* Test that ok maps to success */
 	code = coap_oscore_err_to_coap_code_for_test(ok);
-	zassert_equal(code, COAP_RESPONSE_CODE_OK,
+	zassert_equal(code, COAP_RESPONSE_CODE_CONTENT,
 		      "ok should map to 2.05 Content");
 }
 

@@ -75,7 +75,7 @@ static uint8_t oscore_err_to_coap_code(enum err oscore_err)
 {
 	switch (oscore_err) {
 	case ok:
-		return COAP_RESPONSE_CODE_OK;
+		return COAP_RESPONSE_CODE_CONTENT;
 
 	/* RFC 8613 Section 8.2 step 2 bullet 1: Decode/decompression/parse failures => 4.02 */
 	case not_valid_input_packet:

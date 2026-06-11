@@ -1332,7 +1332,7 @@ ZTEST(coap_client, test_request_tag_block1_block2)
 	z_impl_zsock_sendto_fake.custom_fake = z_impl_zsock_sendto_block1_block2_fake;
 	z_impl_zsock_recvfrom_fake.custom_fake = z_impl_zsock_recvfrom_block1_block2_fake;
 
-	zassert_ok(coap_client_req(&client, 0, &dst_address, &req, NULL));
+	zassert_ok(coap_client_req(&client, 0, net_sad(&dst_address), &req, NULL));
 
 	/* Wait for the operation to complete */
 	k_sleep(K_MSEC(MORE_THAN_EXCHANGE_LIFETIME_MS));

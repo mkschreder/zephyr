@@ -1013,7 +1013,7 @@ static int coap_server_process(int sock_fd)
 				}
 
 				ret = zsock_sendto(sock_fd, response.data, response.offset, 0,
-						   &client_addr, client_addr_len);
+						   net_sad(&client_addr), client_addr_len);
 				if (ret < 0) {
 					LOG_ERR("Failed to send Bad Option response (%d)", -errno);
 					return -errno;
@@ -1048,7 +1048,7 @@ static int coap_server_process(int sock_fd)
 				}
 
 				ret = zsock_sendto(sock_fd, rst.data, rst.offset, 0,
-						   &client_addr, client_addr_len);
+						   net_sad(&client_addr), client_addr_len);
 				if (ret < 0) {
 					LOG_ERR("Failed to send RST (%d)", -errno);
 					return -errno;
@@ -1088,7 +1088,7 @@ static int coap_server_process(int sock_fd)
 						       COAP_RESPONSE_CODE_BAD_REQUEST, id);
 				if (ret == 0) {
 					(void)zsock_sendto(sock_fd, response.data, response.offset, 0,
-							   &client_addr, client_addr_len);
+							   net_sad(&client_addr), client_addr_len);
 				}
 			}
 			return -EINVAL;
@@ -1127,7 +1127,7 @@ static int coap_server_process(int sock_fd)
 			size_t reconstructed_len = 0;
 
 			ret = coap_edhoc_outer_block_process(service, &request, buf, received,
-							     &client_addr, client_addr_len,
+							     net_sad(&client_addr), client_addr_len,
 							     reconstructed_buf, &reconstructed_len);
 
 			if (ret == COAP_EDHOC_OUTER_BLOCK_WAITING) {
@@ -1159,7 +1159,7 @@ static int coap_server_process(int sock_fd)
 					LOG_ERR("Failed to parse reconstructed request (%d)", ret);
 					(void)send_error_response(service, &request,
 								  COAP_RESPONSE_CODE_BAD_REQUEST,
-								  &client_addr, client_addr_len);
+								  net_sad(&client_addr), client_addr_len);
 					goto unlock;
 				}
 
@@ -1204,7 +1204,7 @@ static int coap_server_process(int sock_fd)
 			LOG_ERR("EDHOC option present without OSCORE option");
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_BAD_REQUEST,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			ret = -EINVAL;
 			goto unlock;
 		}
@@ -1217,7 +1217,7 @@ static int coap_server_process(int sock_fd)
 			LOG_ERR("EDHOC+OSCORE request missing combined payload");
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_BAD_REQUEST,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			ret = -EINVAL;
 			goto unlock;
 		}
@@ -1228,7 +1228,7 @@ static int coap_server_process(int sock_fd)
 				payload_len, CONFIG_COAP_EDHOC_MAX_COMBINED_PAYLOAD_LEN);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_BAD_REQUEST,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			ret = -EINVAL;
 			goto unlock;
 		}
@@ -1241,7 +1241,7 @@ static int coap_server_process(int sock_fd)
 			LOG_ERR("Failed to split EDHOC+OSCORE combined payload (%d)", ret);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_BAD_REQUEST,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			goto unlock;
 		}
 
@@ -1259,7 +1259,7 @@ static int coap_server_process(int sock_fd)
 			LOG_ERR("Failed to extract C_R from OSCORE kid (%d)", ret);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_BAD_REQUEST,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			goto unlock;
 		}
 
@@ -1277,7 +1277,7 @@ static int coap_server_process(int sock_fd)
 			LOG_ERR("No EDHOC session found for C_R");
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_BAD_REQUEST,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			ret = -ENOENT;
 			goto unlock;
 		}
@@ -1292,7 +1292,7 @@ static int coap_server_process(int sock_fd)
 			(void)send_edhoc_error_response(service, &request,
 							COAP_RESPONSE_CODE_BAD_REQUEST,
 							1, "EDHOC error",
-							&client_addr, client_addr_len);
+							net_sad(&client_addr), client_addr_len);
 			ret = -EINVAL;
 			goto unlock;
 		}
@@ -1334,7 +1334,7 @@ static int coap_server_process(int sock_fd)
 			(void)send_edhoc_error_response(service, &request,
 							COAP_RESPONSE_CODE_BAD_REQUEST,
 							1, "EDHOC error",
-							&client_addr, client_addr_len);
+							net_sad(&client_addr), client_addr_len);
 			goto unlock;
 		}
 
@@ -1371,7 +1371,7 @@ static int coap_server_process(int sock_fd)
 						  c_r, c_r_len);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_INTERNAL_ERROR,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			goto unlock;
 		}
 
@@ -1391,7 +1391,7 @@ static int coap_server_process(int sock_fd)
 						  c_r, c_r_len);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_INTERNAL_ERROR,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			goto unlock;
 		}
 
@@ -1413,7 +1413,7 @@ static int coap_server_process(int sock_fd)
 						  c_r, c_r_len);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_INTERNAL_ERROR,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			ret = -ENOMEM;
 			goto unlock;
 		}
@@ -1432,7 +1432,7 @@ static int coap_server_process(int sock_fd)
 							  c_r, c_r_len);
 				(void)send_error_response(service, &request,
 							  COAP_RESPONSE_CODE_INTERNAL_ERROR,
-							  &client_addr, client_addr_len);
+							  net_sad(&client_addr), client_addr_len);
 				ret = -ENOMEM;
 				goto unlock;
 			}
@@ -1449,7 +1449,7 @@ static int coap_server_process(int sock_fd)
 						  c_r, c_r_len);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_INTERNAL_ERROR,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			ret = -ENOMEM;
 			goto unlock;
 		}
@@ -1508,7 +1508,7 @@ static int coap_server_process(int sock_fd)
 						  c_r, c_r_len);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_INTERNAL_ERROR,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			goto unlock;
 		}
 
@@ -1531,7 +1531,7 @@ static int coap_server_process(int sock_fd)
 				rebuilt_len, sizeof(rebuilt_buf));
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_REQUEST_TOO_LARGE,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			ret = -ENOMEM;
 			goto unlock;
 		}
@@ -1552,7 +1552,7 @@ static int coap_server_process(int sock_fd)
 			LOG_ERR("Failed to parse rebuilt request (%d)", ret);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_BAD_REQUEST,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			goto unlock;
 		}
 
@@ -1562,7 +1562,7 @@ static int coap_server_process(int sock_fd)
 			LOG_ERR("Failed to remove EDHOC option (%d)", ret);
 			(void)send_error_response(service, &request,
 						  COAP_RESPONSE_CODE_BAD_REQUEST,
-						  &client_addr, client_addr_len);
+						  net_sad(&client_addr), client_addr_len);
 			goto unlock;
 		}
 
@@ -1587,7 +1587,7 @@ static int coap_server_process(int sock_fd)
 		
 		if (error_tkl > 0) {
 			oscore_exchange_remove(service->data->oscore_exchange_cache,
-					       &client_addr, client_addr_len,
+					       net_sad(&client_addr), client_addr_len,
 					       error_token, error_tkl);
 		}
 		
@@ -1597,7 +1597,7 @@ static int coap_server_process(int sock_fd)
 		/* Unlock before sending to avoid holding lock during network I/O */
 		(void)k_mutex_unlock(&lock);
 		(void)send_oscore_error_response(service, &request, error_code,
-						 &client_addr, client_addr_len);
+						 net_sad(&client_addr), client_addr_len);
 		return -EACCES;
 	}
 
@@ -1623,7 +1623,7 @@ static int coap_server_process(int sock_fd)
 		bool is_observe = coap_request_is_observe(&request);
 
 		ret = oscore_exchange_add(service->data->oscore_exchange_cache,
-					  &client_addr, client_addr_len,
+					  net_sad(&client_addr), client_addr_len,
 					  token, tkl, is_observe,
 					  ctx_entry->oscore_ctx);
 		if (ret < 0) {
@@ -1676,7 +1676,7 @@ static int coap_server_process(int sock_fd)
 		(void)k_mutex_unlock(&lock);
 		(void)send_oscore_error_response(service, &request,
 						 COAP_RESPONSE_CODE_UNAUTHORIZED,
-						 &client_addr, client_addr_len);
+						 net_sad(&client_addr), client_addr_len);
 		return -ENOTSUP;
 	}
 
@@ -1693,7 +1693,7 @@ static int coap_server_process(int sock_fd)
 		
 		if (error_tkl > 0) {
 			oscore_exchange_remove(service->data->oscore_exchange_cache,
-					       &client_addr, client_addr_len,
+					       net_sad(&client_addr), client_addr_len,
 					       error_token, error_tkl);
 		}
 		
@@ -1703,7 +1703,7 @@ static int coap_server_process(int sock_fd)
 		/* Unlock before sending to avoid holding lock during network I/O */
 		(void)k_mutex_unlock(&lock);
 		(void)send_oscore_error_response(service, &request, error_code,
-						 &client_addr, client_addr_len);
+						 net_sad(&client_addr), client_addr_len);
 		return -EACCES;
 	}
 
@@ -1726,7 +1726,7 @@ static int coap_server_process(int sock_fd)
 		bool is_observe = coap_request_is_observe(&request);
 
 		ret = oscore_exchange_add(service->data->oscore_exchange_cache,
-					  &client_addr, client_addr_len,
+					  net_sad(&client_addr), client_addr_len,
 					  token, tkl, is_observe,
 					  oscore_ctx);
 		if (ret < 0) {
@@ -1737,7 +1737,7 @@ static int coap_server_process(int sock_fd)
 		/* Service requires OSCORE but request is not protected */
 		LOG_WRN("Service requires OSCORE but request is not protected");
 		(void)send_error_response(service, &request, COAP_RESPONSE_CODE_UNAUTHORIZED,
-					  &client_addr, client_addr_len);
+					  net_sad(&client_addr), client_addr_len);
 		ret = -EACCES;
 		goto unlock;
 	}
@@ -1862,7 +1862,7 @@ dispatch_request:
 		if (echo_ret == 0) {
 			/* Echo present - verify it */
 			echo_ret = echo_verify_value(service->data->echo_cache,
-						     &client_addr, client_addr_len,
+						     net_sad(&client_addr), client_addr_len,
 						     echo_value, echo_len);
 			if (echo_ret == 0) {
 				echo_verified = true;
@@ -1894,7 +1894,7 @@ dispatch_request:
 		    coap_uri_path_match(COAP_WELL_KNOWN_CORE_PATH, options, opt_num)) {
 			/* Check if address is verified */
 			if (!echo_is_address_verified(service->data->echo_cache,
-						      &client_addr, client_addr_len)) {
+						      net_sad(&client_addr), client_addr_len)) {
 				/* Estimate response size for well-known/core */
 				size_t est_response_size = 0;
 
@@ -1929,7 +1929,7 @@ dispatch_request:
 
 			/* Create new Echo challenge */
 			ret = echo_create_challenge(service->data->echo_cache,
-						    &client_addr, client_addr_len,
+						    net_sad(&client_addr), client_addr_len,
 						    new_echo_value, &new_echo_len);
 			if (ret < 0) {
 				LOG_ERR("Failed to create Echo challenge (%d)", ret);
@@ -1948,7 +1948,7 @@ dispatch_request:
 
 			/* Send the challenge */
 			ret = coap_service_send(service, &challenge_response,
-					       &client_addr, client_addr_len, NULL);
+					       net_sad(&client_addr), client_addr_len, NULL);
 			if (ret < 0) {
 				LOG_ERR("Failed to send Echo challenge (%d)", ret);
 			}
@@ -1961,7 +1961,7 @@ dispatch_request:
 	/* RFC 9528 Appendix A.2: Handle EDHOC-over-CoAP requests to /.well-known/edhoc */
 	if (coap_uri_path_match(COAP_WELL_KNOWN_EDHOC_PATH, options, opt_num)) {
 		ret = coap_edhoc_transport_handle_request(service, &request,
-							  &client_addr, client_addr_len);
+							  net_sad(&client_addr), client_addr_len);
 		goto unlock;
 	}
 #endif /* CONFIG_COAP_SERVER_WELL_KNOWN_EDHOC */

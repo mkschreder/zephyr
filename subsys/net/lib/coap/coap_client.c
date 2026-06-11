@@ -1067,7 +1067,7 @@ static int handle_response(struct coap_client *client, const struct net_sockaddr
 
 		/* Send RST for CON response per RFC 7252 Section 4.2 */
 		if (response_type == COAP_TYPE_CON) {
-			ret = send_rst(client, response);
+			ret = send_rst(client->fd, addr, addrlen, response);
 			if (ret < 0) {
 				LOG_ERR("Failed to send RST for rejected response");
 			}
@@ -1249,7 +1249,7 @@ static int handle_response(struct coap_client *client, const struct net_sockaddr
 			struct coap_transmission_parameters params = internal_req->pending.params;
 
 			ret = coap_pending_init(&internal_req->pending, &internal_req->request,
-						&client->address, &params);
+						net_sad(&internal_req->addr), &params);
 			if (ret < 0) {
 				LOG_ERR("Error creating pending");
 				internal_req->oscore_outer_reassembly_len = 0;
@@ -1260,7 +1260,7 @@ static int handle_response(struct coap_client *client, const struct net_sockaddr
 
 			ret = send_request(client->fd, internal_req->request.data,
 					   internal_req->request.offset, 0,
-					   &client->address, client->socklen);
+					   net_sad(&internal_req->addr), internal_req->addrlen);
 			if (ret < 0) {
 				LOG_ERR("Error sending next block request");
 				internal_req->oscore_outer_reassembly_len = 0;
@@ -1860,7 +1860,7 @@ int coap_client_test_inject_response(struct coap_client *client,
 
 	/* Process the response through the normal handler */
 	k_mutex_lock(&client->lock, K_FOREVER);
-	ret = handle_response(client, &response, false);
+	ret = handle_response(client, NULL, 0, &response, false);
 	k_mutex_unlock(&client->lock);
 
 	return ret;
