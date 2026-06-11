@@ -200,7 +200,8 @@ static void cobs_rx_work_handler(struct k_work *work)
 			ret = cobs_decode_stream(&ctx->decoder,
 						 chunk + offset,
 						 chunk_len - offset,
-						 ctx->rx_buf_tail);
+						 ctx->rx_buf_tail,
+						 COBS_DEFAULT_DELIMITER);
 
 			if (ret > 0) {
 				/* Processed some bytes */
@@ -238,7 +239,7 @@ static void cobs_rx_work_handler(struct k_work *work)
 						/* Reset for next frame */
 						ctx->rx_buf_head = NULL;
 						ctx->rx_buf_tail = NULL;
-						cobs_decode_reset(&ctx->decoder);
+						cobs_decode_init(&ctx->decoder);
 
 						k_spin_unlock(&ctx->rx_lock, key);
 
@@ -257,7 +258,7 @@ static void cobs_rx_work_handler(struct k_work *work)
 							ctx->rx_buf_head = NULL;
 							ctx->rx_buf_tail = NULL;
 						}
-						cobs_decode_reset(&ctx->decoder);
+						cobs_decode_init(&ctx->decoder);
 						k_spin_unlock(&ctx->rx_lock, key);
 					}
 				} else {
@@ -275,7 +276,7 @@ static void cobs_rx_work_handler(struct k_work *work)
 						ctx->rx_buf_head = NULL;
 						ctx->rx_buf_tail = NULL;
 					}
-					cobs_decode_reset(&ctx->decoder);
+					cobs_decode_init(&ctx->decoder);
 					k_spin_unlock(&ctx->rx_lock, key);
 					LOG_ERR("!!!!! Chained net_buf allocation failed - DROPPING FRAME !!!!!");
 					break;
@@ -299,7 +300,7 @@ static void cobs_rx_work_handler(struct k_work *work)
 					ctx->rx_buf_head = NULL;
 					ctx->rx_buf_tail = NULL;
 				}
-				cobs_decode_reset(&ctx->decoder);
+				cobs_decode_init(&ctx->decoder);
 				k_spin_unlock(&ctx->rx_lock, key);
 				
 				LOG_WRN("COBS decode error: %d at offset %zu/%zu, resetting decoder", 
@@ -349,7 +350,8 @@ static int cobs_uart_async_send(const struct device *dev, struct net_pkt *pkt)
 
 	/* Encode into tx_buf (should complete in one call since buffer is large enough) */
 	encoded_len = UART_TX_BUF_LEN;
-	ret = cobs_encode_stream(&encoder, pkt->buffer, ctx->tx_buf, &encoded_len);
+	ret = cobs_encode_stream(&encoder, pkt->buffer, ctx->tx_buf, &encoded_len,
+				 COBS_DEFAULT_DELIMITER);
 	if (ret < 0) {
 		LOG_ERR("COBS encode stream failed: %d", ret);
 		atomic_clear(&ctx->tx_busy);
@@ -358,7 +360,8 @@ static int cobs_uart_async_send(const struct device *dev, struct net_pkt *pkt)
 
 	/* Finalize encoding (should add nothing since we encoded everything) */
 	size_t final_len = UART_TX_BUF_LEN - encoded_len;
-	ret = cobs_encode_finalize(&encoder, ctx->tx_buf + encoded_len, &final_len);
+	ret = cobs_encode_finalize(&encoder, ctx->tx_buf + encoded_len, &final_len,
+				   COBS_DEFAULT_DELIMITER);
 	if (ret < 0) {
 		LOG_ERR("COBS encode finalize failed: %d", ret);
 		atomic_clear(&ctx->tx_busy);
