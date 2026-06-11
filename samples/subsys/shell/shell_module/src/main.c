@@ -98,6 +98,22 @@ static int cmd_demo_board(const struct shell *sh, size_t argc, char **argv)
 	return 0;
 }
 
+static int cmd_loop(const struct shell *sh, size_t argc, char **argv)
+{
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
+	volatile uint32_t i;
+
+	shell_print(sh, "Running tight loop for 10M iterations...");
+	for (i = 0; i < 10000000; i++) {
+		/* Tight loop */
+	}
+	shell_print(sh, "Loop completed");
+
+	return 0;
+}
+
 #if defined CONFIG_SHELL_GETOPT
 /* Thread save usage */
 static int cmd_demo_getopt_ts(const struct shell *sh, size_t argc,
@@ -367,6 +383,8 @@ SHELL_CMD_REGISTER(demo, &sub_demo, "Demo commands", NULL);
 SHELL_CMD_ARG_REGISTER(version, NULL, "Show kernel version", cmd_version, 1, 0);
 
 SHELL_CMD_ARG_REGISTER(bypass, NULL, "Bypass shell", cmd_bypass, 1, 0);
+
+SHELL_CMD_ARG_REGISTER(loop, NULL, "Run tight loop for 10M iterations", cmd_loop, 1, 0);
 
 /* Create a set of commands. Commands to this set are added using @ref SHELL_SUBCMD_ADD
  * and @ref SHELL_SUBCMD_COND_ADD.
