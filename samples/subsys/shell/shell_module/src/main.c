@@ -427,5 +427,12 @@ int main(void)
 		k_sleep(K_MSEC(100));
 	}
 #endif
+
+	/* Run tight loop at boot */
+	volatile uint32_t i;
+	for (i = 0; i < 10000000; i++) {
+		/* Tight loop */
+	}
+
 	return 0;
 }
