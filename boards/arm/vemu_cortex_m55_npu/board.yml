@@ -1,0 +1,6 @@
+board:
+  name: vemu_cortex_m55_npu
+  full_name: VEMU Cortex-M55 with Arm Ethos-U65 NPU
+  vendor: arm
+  socs:
+  - name: vemu_cortex_m33

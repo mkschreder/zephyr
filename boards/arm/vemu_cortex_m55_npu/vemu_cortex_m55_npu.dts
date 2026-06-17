@@ -1,0 +1,105 @@
+/* Copyright (c) 2026 Martin Schröder <info@swedishembedded.com> */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+/dts-v1/;
+
+#include <arm/armv8-m.dtsi>
+#include <mem.h>
+
+/ {
+	model = "vemu Cortex-M55 + Ethos-U65 NPU";
+	compatible = "arm,vemu-cortex-m55-npu";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	aliases {
+		uart-0 = &uart0;
+	};
+
+	chosen {
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-m33";
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			mpu: mpu@e000ed90 {
+				compatible = "arm,armv8m-mpu";
+				reg = <0xe000ed90 0x40>;
+			};
+		};
+	};
+
+	flash0: flash@0 {
+		compatible = "soc-nv-flash";
+		reg = <0x00000000 DT_SIZE_K(512)>;
+	};
+
+	sram0: memory@20000000 {
+		compatible = "mmio-sram";
+		reg = <0x20000000 DT_SIZE_K(128)>;
+	};
+
+	/* 256 MiB external DDR for model weights + tensor arena */
+	ddr: memory@70000000 {
+		compatible = "zephyr,memory-region", "mmio-sram";
+		reg = <0x70000000 DT_SIZE_M(256)>;
+		zephyr,memory-region = "DDR";
+	};
+
+	sysclk: system-clock {
+		compatible = "fixed-clock";
+		clock-frequency = <12000000>;
+		#clock-cells = <0>;
+	};
+
+	/* Ethos-U65-256 NPU */
+	ethosu {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		interrupt-parent = <&nvic>;
+
+		ethosu0: ethosu@50004000 {
+			compatible = "arm,ethos-u";
+			reg = <0x50004000>;
+			interrupts = <16 3>;
+			secure-enable;
+			privilege-enable;
+			status = "okay";
+		};
+	};
+
+	soc {
+		sau: sau@e000edd0 {
+			compatible = "arm,armv8m-sau";
+			reg = <0xe000edd0 0x14>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			status = "disabled";
+		};
+
+		uart0: uart@4000c000 {
+			compatible = "arm,pl011";
+			reg = <0x4000c000 0x1000>;
+			clocks = <&sysclk>;
+			interrupts = <5 3>;
+			status = "okay";
+			current-speed = <115200>;
+		};
+	};
+};
+
+&nvic {
+	arm,num-irq-priority-bits = <3>;
+};

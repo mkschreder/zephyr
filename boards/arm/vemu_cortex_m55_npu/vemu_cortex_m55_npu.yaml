@@ -1,0 +1,14 @@
+identifier: vemu_cortex_m55_npu
+name: VEMU Cortex-M55 with Arm Ethos-U65 NPU
+type: qemu
+simulation:
+  - name: vemu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+ram: 128
+flash: 512
+vendor: arm
+features:
+  - netif:eth
